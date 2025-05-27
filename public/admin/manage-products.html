@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Manage Products</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    input, button { padding: 6px; margin: 5px 0; }
+  </style>
+</head>
+<body>
+  <h1>Manage Products</h1>
+
+  <form id="addProductForm">
+    <input type="text" id="name" placeholder="Product Name" required>
+    <input type="text" id="description" placeholder="Description">
+    <input type="number" id="price" placeholder="Price" required>
+    <input type="text" id="image_url" placeholder="Image URL">
+    <button type="submit">Add Product</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>Name</th><th>Description</th><th>Price</th><th>Image</th><th>Action</th>
+      </tr>
+    </thead>
+    <tbody id="productTableBody"></tbody>
+  </table>
+
+  <script>
+    async function loadProducts() {
+      const res = await fetch('/admin/products');
+      const products = await res.json();
+      const tbody = document.getElementById('productTableBody');
+      tbody.innerHTML = '';
+      products.forEach(p => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${p.id}</td>
+          <td>${p.name}</td>
+          <td>${p.description}</td>
+          <td>${p.price}</td>
+          <td><img src="${p.image_url}" width="50"></td>
+          <td><button onclick="deleteProduct(${p.id})">Delete</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    async function deleteProduct(id) {
+      if (confirm('Are you sure you want to delete this product?')) {
+        await fetch('/admin/products/' + id, { method: 'DELETE' });
+        loadProducts();
+      }
+    }
+
+    document.getElementById('addProductForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const body = {
+        name: document.getElementById('name').value,
+        description: document.getElementById('description').value,
+        price: document.getElementById('price').value,
+        image_url: document.getElementById('image_url').value
+      };
+      await fetch('/admin/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      e.target.reset();
+      loadProducts();
+    });
+
+    loadProducts();
+  </script>
+</body>
+</html>

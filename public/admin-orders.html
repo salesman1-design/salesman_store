@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin - Manage Orders</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f8f9fa;
+    }
+    h1 {
+      text-align: center;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .top-bar a {
+      text-decoration: none;
+    }
+    .top-bar button {
+      padding: 10px 16px;
+      font-size: 14px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 30px;
+    }
+    th, td {
+      padding: 10px;
+      border: 1px solid #dee2e6;
+      text-align: left;
+    }
+    th {
+      background-color: #343a40;
+      color: white;
+    }
+    tr:nth-child(even) {
+      background-color: #f1f1f1;
+    }
+    .actions button {
+      margin-right: 5px;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+      color: white;
+    }
+    .accept-sale {
+      background-color: #28a745;
+    }
+    .accept-order {
+      background-color: #17a2b8;
+    }
+    .decline {
+      background-color: #dc3545;
+    }
+    @media (max-width: 600px) {
+      table, thead, tbody, th, td, tr {
+        display: block;
+      }
+      th, td {
+        padding: 10px;
+        text-align: right;
+      }
+      td::before {
+        content: attr(data-label);
+        float: left;
+        font-weight: bold;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Admin Order Management</h1>
+
+  <div class="top-bar">
+    <a href="/admin/products">
+      <button>📦 Manage Products</button>
+    </a>
+  </div>
+
+  <table id="ordersTable">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Product</th>
+        <th>Email</th>
+        <th>Status</th>
+        <th>Date</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Orders will be inserted here dynamically -->
+    </tbody>
+  </table>
+
+  <script>
+    async function fetchOrders() {
+      const res = await fetch('/api/orders');
+      const orders = await res.json();
+
+      const tbody = document.querySelector('#ordersTable tbody');
+      tbody.innerHTML = '';
+
+      orders.forEach(order => {
+        const tr = document.createElement('tr');
+
+        tr.innerHTML = `
+          <td data-label="ID">${order.id}</td>
+          <td data-label="Product">${order.product_name}</td>
+          <td data-label="Email">${order.customer_email}</td>
+          <td data-label="Status">${order.status}</td>
+          <td data-label="Date">${new Date(order.created_at).toLocaleString()}</td>
+          <td class="actions" data-label="Actions">
+            <button class="accept-sale" onclick="handleAction(${order.id}, 'accept-sale')">Accept Sale</button>
+            <button class="accept-order" onclick="handleAction(${order.id}, 'accept-order')">Accept Order</button>
+            <button class="decline" onclick="handleAction(${order.id}, 'decline')">Decline</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function handleAction(orderId, action) {
+      try {
+        const res = await fetch(`/admin/orders/${orderId}/${action}`, { method: 'POST' });
+        if (res.ok) {
+          alert('Action completed successfully.');
+          fetchOrders();
+        } else {
+          const err = await res.text();
+          alert('Error: ' + err);
+        }
+      } catch (error) {
+        alert('Request failed.');
+      }
+    }
+
+    fetchOrders();
+  </script>
+</body>
+</html>

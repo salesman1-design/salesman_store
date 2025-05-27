@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Manage Products</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    h1 { text-align: center; }
+    form, .product { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+    input, textarea { display: block; margin: 10px 0; width: 100%; padding: 5px; }
+    img { max-width: 150px; display: block; margin: 10px 0; }
+    button { margin-right: 10px; padding: 5px 10px; }
+  </style>
+</head>
+<body>
+  <h1>Admin: Manage Products</h1>
+
+  <form id="addProductForm">
+    <h3>Add New Product</h3>
+    <input type="text" name="name" placeholder="Product Name" required />
+    <textarea name="description" placeholder="Description"></textarea>
+    <input type="number" name="price" placeholder="Price" required />
+    <input type="text" name="image_url" placeholder="Image URL" />
+    <button type="submit">Add Product</button>
+  </form>
+
+  <div id="productList"></div>
+
+  <script>
+    async function loadProducts() {
+      const res = await fetch('/admin/api/products');
+      const products = await res.json();
+      const container = document.getElementById('productList');
+      container.innerHTML = '';
+      products.forEach(product => {
+        const div = document.createElement('div');
+        div.className = 'product';
+        div.innerHTML = `
+          <img src="${product.image_url}" alt="Product Image"/>
+          <input type="text" value="${product.name}" id="name-${product.id}" />
+          <textarea id="description-${product.id}">${product.description}</textarea>
+          <input type="number" value="${product.price}" id="price-${product.id}" />
+          <input type="text" value="${product.image_url}" id="image-${product.id}" />
+          <button onclick="updateProduct(${product.id})">Update</button>
+          <button onclick="deleteProduct(${product.id})">Delete</button>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    async function deleteProduct(id) {
+      if (!confirm('Are you sure you want to delete this product?')) return;
+      await fetch(`/admin/products/${id}`, { method: 'DELETE' });
+      loadProducts();
+    }
+
+    async function updateProduct(id) {
+      const name = document.getElementById(`name-${id}`).value;
+      const description = document.getElementById(`description-${id}`).value;
+      const price = document.getElementById(`price-${id}`).value;
+      const image_url = document.getElementById(`image-${id}`).value;
+
+      await fetch(`/admin/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, description, price, image_url })
+      });
+
+      loadProducts();
+    }
+
+    document.getElementById('addProductForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const form = e.target;
+      const data = {
+        name: form.name.value,
+        description: form.description.value,
+        price: form.price.value,
+        image_url: form.image_url.value
+      };
+
+      await fetch('/admin/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      form.reset();
+      loadProducts();
+    });
+
+    loadProducts();
+  </script>
+</body>
+</html>
