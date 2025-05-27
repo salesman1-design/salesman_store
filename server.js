@@ -4,22 +4,12 @@ const mysql = require('mysql2/promise');
 const cors = require('cors');
 const nodemailer = require('nodemailer');
 const session = require('express-session');
+const MySQLStore = require('express-mysql-session')(session); // <-- MySQL session store
 const bcrypt = require('bcryptjs');
 const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3000;
-
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: false }
-}));
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
 
 // DB connection pool
 const pool = mysql.createPool({
@@ -32,6 +22,26 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
 });
+
+// MySQL session store setup
+const sessionStore = new MySQLStore({}, pool);
+
+// Replace default session with MySQL-backed session
+app.use(session({
+  key: 'session_cookie_name',
+  secret: process.env.SESSION_SECRET || 'your-secret-key',
+  store: sessionStore,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 1000 * 60 * 60 * 2 // 2 hours
+  }
+}));
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static('public'));
 
 // Email transporter
 const transporter = nodemailer.createTransport({
