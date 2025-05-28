@@ -281,44 +281,29 @@ app.get('/admin/products/:id/credentials', async (req, res) => {
 });
 
 app.post('/admin/products/:id/credentials', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  const { credentials } = req.body;
+  const productId = req.params.id;
+
+  if (!Array.isArray(credentials)) return res.status(400).json({ error: 'Credentials must be an array' });
 
   try {
-    const [result] = await pool.query('INSERT INTO product_credentials (product_id, email, password, used) VALUES (?, ?, ?, FALSE)', [req.params.id, email, password]);
-    res.status(201).json({ message: 'Credential added', credentialId: result.insertId });
+    for (const cred of credentials) {
+      const { email, password } = cred;
+      if (!email || !password) continue;
+
+      await pool.query(
+        'INSERT INTO product_credentials (product_id, email, password, used) VALUES (?, ?, ?, FALSE)',
+        [productId, email, password]
+      );
+    }
+
+    res.json({ message: 'Credentials added' });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to add credential' });
+    res.status(500).json({ error: 'Failed to add credentials' });
   }
 });
 
-app.put('/admin/products/:productId/credentials/:credId', async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
-
-  try {
-    const [result] = await pool.query('UPDATE product_credentials SET email = ?, password = ? WHERE id = ? AND product_id = ?', [email, password, req.params.credId, req.params.productId]);
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Credential not found' });
-    res.json({ message: 'Credential updated' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update credential' });
-  }
-});
-
-app.delete('/admin/products/:productId/credentials/:credId', async (req, res) => {
-  try {
-    const [result] = await pool.query('DELETE FROM product_credentials WHERE id = ? AND product_id = ?', [req.params.credId, req.params.productId]);
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Credential not found' });
-    res.json({ message: 'Credential deleted' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete credential' });
-  }
-});
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
+// Start server
 app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+  console.log(`Server running on http://localhost:${port}`);
 });
