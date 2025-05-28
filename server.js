@@ -28,7 +28,12 @@ pool.on('connection', (connection) => {
   connection.query("SET NAMES utf8mb4");
 });
 
-// Middleware to set JSON UTF-8 header on /api routes
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
+
+// Set Content-Type for API responses
 app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
@@ -44,15 +49,11 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 1000 * 60 * 60 * 2, // 2 hours
+    maxAge: 1000 * 60 * 60 * 2,
   },
 }));
 
-app.use(cors());
-app.use(express.json());
-app.use(express.static('public'));
-
-// Nodemailer transporter setup
+// Nodemailer transporter
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: process.env.SMTP_PORT,
@@ -86,7 +87,7 @@ const adminUser = {
   passwordHash: '$2b$10$MS3zX/p7QVSHTaQbbhu4/.ZnfJBELLOp9hjybpX/QfvTbklQkQ1ZK',
 };
 
-// ===== AUTH ROUTES =====
+// AUTH
 app.get('/admin/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-login.html'));
 });
@@ -114,24 +115,22 @@ function adminAuth(req, res, next) {
   else res.status(401).json({ error: 'Unauthorized' });
 }
 
-app.use('/admin', adminAuth);
+app.use('/admin/api', adminAuth);
 
-// ===== ADMIN PAGES =====
-app.get('/admin/orders', (req, res) => {
+// ADMIN PAGES
+app.get('/admin/orders', adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-orders.html'));
 });
 
-app.get('/admin/products', (req, res) => {
+app.get('/admin/products', adminAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-products.html'));
 });
 
-// ===== PUBLIC ROUTES =====
-// Keep /products serving static file or redirect if you want
+// PRODUCTS
 app.get('/products', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'products.html'));
 });
 
-// NEW API endpoint for products JSON
 app.get('/api/products', async (req, res) => {
   try {
     const [rows] = await pool.query(
@@ -144,7 +143,7 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// ORDER PLACEMENT
+// ORDER
 app.post('/order', async (req, res) => {
   const { product_id, customer_email } = req.body;
   if (!product_id || !customer_email) {
@@ -160,7 +159,7 @@ app.post('/order', async (req, res) => {
     await sendEmail(
       process.env.SMTP_USER,
       `New Order Placed (Order ID: ${result.insertId})`,
-      `<p>New order placed.</p><p>Order ID: ${result.insertId}</p><p>Product ID: ${product_id}</p><p>Email: ${customer_email}</p><p>Status: Pending</p>`
+      `<p>New order placed. ID: ${result.insertId}</p><p>Product ID: ${product_id}</p><p>Email: ${customer_email}</p><p>Status: Pending</p>`
     );
 
     await sendEmail(
@@ -179,7 +178,7 @@ app.post('/order', async (req, res) => {
   }
 });
 
-// ===== ADMIN API =====
+// ADMIN API - Products
 app.get('/admin/api/products', async (req, res) => {
   try {
     const [products] = await pool.query(
@@ -195,7 +194,7 @@ app.get('/admin/api/products', async (req, res) => {
 app.post('/admin/products', async (req, res) => {
   const { name, description, price, image_url } = req.body;
   if (!name || !price) {
-    return res.status(400).json({ error: 'Missing required fields: name or price' });
+    return res.status(400).json({ error: 'Missing name or price' });
   }
 
   try {
@@ -223,7 +222,7 @@ app.delete('/admin/products/:id', async (req, res) => {
   }
 });
 
-// ===== PRODUCT CREDENTIALS =====
+// PRODUCT CREDENTIALS
 app.get('/admin/products/:id/credentials', async (req, res) => {
   const productId = req.params.id;
   try {
@@ -299,7 +298,6 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
