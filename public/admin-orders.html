@@ -34,7 +34,7 @@
 
   <script>
     async function fetchOrders() {
-      const res = await fetch('/admin/orders', { credentials: 'include' });
+      const res = await fetch('/admin/api/orders', { credentials: 'include' });
       if (res.status === 401) {
         alert("You are not authorized. Please log in first.");
         window.location.href = '/admin-login.html';
