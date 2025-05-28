@@ -11,12 +11,6 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use((req, res, next) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  next();
-});
-
-
 // DB connection pool with UTF8MB4 support for emoji
 const pool = mysql.createPool({
   host: process.env.DB_HOST || '127.0.0.1',
