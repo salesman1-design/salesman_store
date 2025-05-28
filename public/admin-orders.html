@@ -1,4 +1,3 @@
-<!-- public/admin-orders.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,21 +47,25 @@
       orders.forEach(order => {
         const card = document.createElement('div');
         card.className = 'order-card';
+
+        // Escape single quotes in email for inline onclick
+        const safeEmail = order.customer_email.replace(/'/g, "\\'");
+
         card.innerHTML = `
-          <p><strong>Product:</strong> ${order.product_name}</p>
-          <p><strong>Name:</strong> ${order.customer_name}</p>
+          <p><strong>Product:</strong> ${order.name}</p>
+          <p><strong>Name:</strong> ${order.customer_name || 'N/A'}</p>
           <p><strong>Email:</strong> ${order.customer_email}</p>
           <p><strong>Status:</strong> ${order.status}</p>
           <button class="accept-btn" onclick="acceptSale(${order.id})">Accept Sale</button>
           <button class="deliver-btn" onclick="acceptOrder(${order.id})">Send Credentials</button>
-          <button class="decline-btn" onclick="declineOrder(${order.id}, '${order.customer_email}')">Decline</button>
+          <button class="decline-btn" onclick="declineOrder(${order.id}, '${safeEmail}')">Decline</button>
         `;
         container.appendChild(card);
       });
     }
 
     async function acceptSale(id) {
-      await fetch(`/admin/orders/${id}/accept-sale`, {
+      await fetch(`/admin/api/orders/${id}/accept-sale`, {
         method: 'POST',
         credentials: 'include'
       });
@@ -70,7 +73,7 @@
     }
 
     async function acceptOrder(id) {
-      await fetch(`/admin/orders/${id}/accept-order`, {
+      await fetch(`/admin/api/orders/${id}/accept-order`, {
         method: 'POST',
         credentials: 'include'
       });
@@ -78,7 +81,7 @@
     }
 
     async function declineOrder(id, email) {
-      await fetch(`/admin/orders/${id}/decline`, {
+      await fetch(`/admin/api/orders/${id}/decline`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -91,3 +94,4 @@
   </script>
 </body>
 </html>
+

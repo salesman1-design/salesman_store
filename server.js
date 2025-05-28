@@ -28,7 +28,12 @@ pool.on('connection', (connection) => {
   connection.query("SET NAMES utf8mb4");
 });
 
-app.use(cors());
+// Adjust CORS to allow cookies and origin (if needed)
+app.use(cors({
+  origin: true, // adjust to your frontend origin if needed
+  credentials: true,
+}));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
@@ -132,178 +137,122 @@ app.get('/api/products', async (req, res) => {
 });
 
 app.post('/order', async (req, res) => {
-  const { product_id, customer_email } = req.body;
-  if (!product_id || !customer_email) return res.status(400).json({ error: 'Missing product_id or customer_email' });
-
   try {
-    const [result] = await pool.query('INSERT INTO orders (product_id, customer_email) VALUES (?, ?)', [product_id, customer_email]);
-
-    await sendEmail(
-      process.env.SMTP_USER,
-      `New Order Placed (Order ID: ${result.insertId})`,
-      `<p>New order placed.</p><p>Order ID: ${result.insertId}</p><p>Product ID: ${product_id}</p><p>Email: ${customer_email}</p>`
-    );
-
-    await sendEmail(
-      customer_email,
-      'Order Received - Next Steps',
-      `<p>Thanks for your order!</p><p>You will get a Cash App link if the order is accepted.</p><p>Credentials are delivered after payment.</p><p>Email must not be reused.</p>`
-    );
-
-    res.json({ message: 'Order placed', order_id: result.insertId });
+    const { product_id, customer_email, customer_name } = req.body;
+    if (!product_id || !customer_email) {
+      return res.status(400).json({ error: 'Product and email are required' });
+    }
+    // Insert customer_name if you want to show it later in admin orders:
+    await pool.query('INSERT INTO orders (product_id, customer_email, customer_name) VALUES (?, ?, ?)', [product_id, customer_email, customer_name || null]);
+    res.json({ message: 'Order placed successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ADMIN APIs
+// ADMIN API - Orders
+
+// Return orders including customer_name and product_name alias
 app.get('/admin/api/orders', async (req, res) => {
   try {
-    const [orders] = await pool.query(
-      `SELECT o.id, o.customer_email, o.product_id, o.status, p.name, p.description 
-       FROM orders o 
-       JOIN products p ON o.product_id = p.id 
-       ORDER BY o.id DESC`
-    );
-    res.json(orders);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch orders' });
-  }
-});
-
-app.post('/admin/api/orders/:id/accept-sale', async (req, res) => {
-  const orderId = req.params.id;
-  try {
-    const [orderData] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
-    if (orderData.length === 0) return res.status(404).json({ error: 'Order not found' });
-
-    const order = orderData[0];
-    await pool.query('UPDATE orders SET status = ? WHERE id = ?', ['payment_pending', orderId]);
-
-    await sendEmail(order.customer_email, 'Cash App Payment Request', `
-      <p>Payment link: <a href="${process.env.CASHAPP_LINK}" target="_blank">Click here to pay</a></p>
-      <p>After payment, your credentials will be delivered.</p>`);
-
-    res.json({ message: 'Payment link sent' });
+    const [rows] = await pool.query(`
+      SELECT o.id, o.customer_email, o.customer_name, o.status, p.name AS product_name, p.description 
+      FROM orders o 
+      JOIN products p ON o.product_id = p.id 
+      ORDER BY o.id DESC
+    `);
+    res.json(rows);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to accept sale' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.post('/admin/api/orders/:id/accept-order', async (req, res) => {
-  const orderId = req.params.id;
+// Accept sale
+app.post('/admin/api/orders/:id/accept-sale', async (req, res) => {
+  const id = req.params.id;
   try {
-    const [[order]] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+    await pool.query('UPDATE orders SET status = ? WHERE id = ?', ['payment_pending', id]);
+
+    // Send Cash App link email
+    const [rows] = await pool.query(`
+      SELECT customer_email FROM orders WHERE id = ?
+    `, [id]);
+
+    if (rows.length > 0) {
+      await sendEmail(
+        rows[0].customer_email,
+        'Cash App Payment Request',
+        `<p>Please send payment to Cash App $fastfire9 for your purchase.</p>`
+      );
+    }
+    res.json({ message: 'Sale accepted' });
+  } catch (error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Accept order and send credentials
+app.post('/admin/api/orders/:id/accept-order', async (req, res) => {
+  const id = req.params.id;
+  try {
+    // Find the credentials for the product associated with the order
+    const [[order]] = await pool.query('SELECT product_id, customer_email FROM orders WHERE id = ?', [id]);
+
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    const [creds] = await pool.query(
-      'SELECT id, email, password FROM product_credentials WHERE product_id = ? AND used = FALSE LIMIT 1',
-      [order.product_id]
-    );
+    // Get two email-password pairs for the product that are unused
+    const [creds] = await pool.query(`
+      SELECT id, email, password FROM credentials 
+      WHERE product_id = ? AND used = 0 
+      LIMIT 2
+    `, [order.product_id]);
 
-    if (creds.length === 0) return res.status(400).json({ error: 'No available credentials' });
+    if (creds.length === 0) {
+      return res.status(400).json({ error: 'No available credentials' });
+    }
 
-    const credential = creds[0];
+    // Send each credential to the customer
+    for (const cred of creds) {
+      await sendEmail(
+        order.customer_email,
+        'Your Product Credentials',
+        `<p>Email: ${cred.email}</p><p>Password: ${cred.password}</p>`
+      );
+      // Mark credential as used
+      await pool.query('UPDATE credentials SET used = 1 WHERE id = ?', [cred.id]);
+    }
 
-    await pool.query('UPDATE product_credentials SET used = TRUE WHERE id = ?', [credential.id]);
-    await pool.query('DELETE FROM orders WHERE id = ?', [orderId]);
-
-    await sendEmail(order.customer_email, 'Order Completed - Access Info', `
-      <p>Here are your credentials:</p>
-      <p><strong>Email:</strong> ${credential.email}</p>
-      <p><strong>Password:</strong> ${credential.password}</p>
-      <p>Reset your password. Access may expire in 1 hour.</p>`);
+    // Mark order as completed and delete it after sending credentials
+    await pool.query('DELETE FROM orders WHERE id = ?', [id]);
 
     res.json({ message: 'Credentials sent and order completed' });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to complete order' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
+// Decline order: delete order and send decline email
 app.post('/admin/api/orders/:id/decline', async (req, res) => {
-  const orderId = req.params.id;
+  const id = req.params.id;
+  const { email } = req.body;
   try {
-    const [[order]] = await pool.query('SELECT * FROM orders WHERE id = ?', [orderId]);
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+    await pool.query('DELETE FROM orders WHERE id = ?', [id]);
 
-    await pool.query('DELETE FROM orders WHERE id = ?', [orderId]);
-
-    await sendEmail(order.customer_email, 'Order Declined', `
-      <p>Your order was declined due to failure to pay or product unavailability.</p>
-      <p>Contact @salesman_empire on Instagram for assistance.</p>`);
-
-    res.json({ message: 'Order declined and deleted' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to decline order' });
-  }
-});
-
-// PRODUCT MGMT
-app.get('/admin/api/products', async (req, res) => {
-  try {
-    const [products] = await pool.query('SELECT id, name, description, price, image_url FROM products ORDER BY id ASC LIMIT 1000');
-    res.json(products);
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch products' });
-  }
-});
-
-app.post('/admin/products', async (req, res) => {
-  const { name, description, price, image_url } = req.body;
-  if (!name || !price) return res.status(400).json({ error: 'Missing name or price' });
-
-  try {
-    const [result] = await pool.query('INSERT INTO products (name, description, price, image_url) VALUES (?, ?, ?, ?)', [name, description || '', price, image_url || '']);
-    res.status(201).json({ message: 'Product added', productId: result.insertId });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-app.delete('/admin/products/:id', async (req, res) => {
-  try {
-    const [result] = await pool.query('DELETE FROM products WHERE id = ?', [req.params.id]);
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Product not found' });
-    res.json({ message: 'Product deleted' });
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// CREDENTIAL MGMT
-app.get('/admin/products/:id/credentials', async (req, res) => {
-  try {
-    const [creds] = await pool.query('SELECT id, email, password, used FROM product_credentials WHERE product_id = ?', [req.params.id]);
-    res.json(creds);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch credentials' });
-  }
-});
-
-app.post('/admin/products/:id/credentials', async (req, res) => {
-  const { credentials } = req.body;
-  const productId = req.params.id;
-
-  if (!Array.isArray(credentials)) return res.status(400).json({ error: 'Credentials must be an array' });
-
-  try {
-    for (const cred of credentials) {
-      const { email, password } = cred;
-      if (!email || !password) continue;
-
-      await pool.query(
-        'INSERT INTO product_credentials (product_id, email, password, used) VALUES (?, ?, ?, FALSE)',
-        [productId, email, password]
+    if (email) {
+      await sendEmail(
+        email,
+        'Order Declined',
+        `<p>Order was declined due to failure to pay or product not available.</p><p>Contact owner at @salesman_empire on Instagram</p>`
       );
     }
 
-    res.json({ message: 'Credentials added' });
+    res.json({ message: 'Order declined and customer notified' });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to add credentials' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Start server
 app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+  console.log(`Server listening at http://localhost:${port}`);
 });
