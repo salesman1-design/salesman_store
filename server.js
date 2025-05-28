@@ -11,7 +11,7 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// DB connection pool with UTF8MB4 support for emoji
+// MySQL connection pool with utf8mb4 support
 const pool = mysql.createPool({
   host: process.env.DB_HOST || '127.0.0.1',
   port: process.env.DB_PORT || 3306,
@@ -21,16 +21,15 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  charset: 'utf8mb4'
+  charset: 'utf8mb4',
 });
 
-// Force utf8mb4 on every new connection
 pool.on('connection', (connection) => {
   connection.query("SET NAMES utf8mb4");
 });
 
-// Middleware to enforce JSON UTF-8 response header
-app.use((req, res, next) => {
+// Middleware to set JSON UTF-8 header on /api routes
+app.use('/api', (req, res, next) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   next();
 });
@@ -45,15 +44,15 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 1000 * 60 * 60 * 2
-  }
+    maxAge: 1000 * 60 * 60 * 2, // 2 hours
+  },
 }));
 
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Email transporter
+// Nodemailer transporter setup
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: process.env.SMTP_PORT,
@@ -64,28 +63,30 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Email sending function
 async function sendEmail(to, subject, html) {
   if (!to) {
     console.error('Missing email recipient!');
     return;
   }
-
-  await transporter.sendMail({
-    from: `"Car Sales Platform" <${process.env.SMTP_USER}>`,
-    to,
-    subject,
-    html,
-  });
+  try {
+    await transporter.sendMail({
+      from: `"Car Sales Platform" <${process.env.SMTP_USER}>`,
+      to,
+      subject,
+      html,
+    });
+  } catch (error) {
+    console.error('Failed to send email:', error);
+  }
 }
 
 // Admin credentials
 const adminUser = {
   username: 'fastfire9',
-  passwordHash: '$2b$10$MS3zX/p7QVSHTaQbbhu4/.ZnfJBELLOp9hjybpX/QfvTbklQkQ1ZK'
+  passwordHash: '$2b$10$MS3zX/p7QVSHTaQbbhu4/.ZnfJBELLOp9hjybpX/QfvTbklQkQ1ZK',
 };
 
-// ======================== AUTH =========================
+// ===== AUTH ROUTES =====
 app.get('/admin/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-login.html'));
 });
@@ -115,7 +116,7 @@ function adminAuth(req, res, next) {
 
 app.use('/admin', adminAuth);
 
-// ======================== ADMIN PAGES =========================
+// ===== ADMIN PAGES =====
 app.get('/admin/orders', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-orders.html'));
 });
@@ -124,10 +125,18 @@ app.get('/admin/products', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'admin-products.html'));
 });
 
-// ======================== PUBLIC ROUTES =========================
-app.get('/products', async (req, res) => {
+// ===== PUBLIC ROUTES =====
+// Keep /products serving static file or redirect if you want
+app.get('/products', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'products.html'));
+});
+
+// NEW API endpoint for products JSON
+app.get('/api/products', async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT id, name, description, price, image_url FROM products ORDER BY id ASC LIMIT 1000');
+    const [rows] = await pool.query(
+      'SELECT id, name, description, price, image_url FROM products ORDER BY id ASC LIMIT 1000'
+    );
     res.json(rows);
   } catch (error) {
     console.error('Error fetching products:', error);
@@ -135,6 +144,7 @@ app.get('/products', async (req, res) => {
   }
 });
 
+// ORDER PLACEMENT
 app.post('/order', async (req, res) => {
   const { product_id, customer_email } = req.body;
   if (!product_id || !customer_email) {
@@ -142,7 +152,10 @@ app.post('/order', async (req, res) => {
   }
 
   try {
-    const [result] = await pool.query('INSERT INTO orders (product_id, customer_email) VALUES (?, ?)', [product_id, customer_email]);
+    const [result] = await pool.query(
+      'INSERT INTO orders (product_id, customer_email) VALUES (?, ?)',
+      [product_id, customer_email]
+    );
 
     await sendEmail(
       process.env.SMTP_USER,
@@ -153,7 +166,10 @@ app.post('/order', async (req, res) => {
     await sendEmail(
       customer_email,
       'Order Received - Next Steps',
-      `<p>Thank you for your order. Please wait for confirmation.</p><p>You’ll receive a CashApp link if accepted.</p><p>Credentials are sent after payment.</p><p>The password resets in 1 hour and the email must not be reused.</p>`
+      `<p>Thank you for your order. Please wait for confirmation.</p>
+       <p>You’ll receive a CashApp link if accepted.</p>
+       <p>Credentials are sent after payment.</p>
+       <p>The password resets in 1 hour and the email must not be reused.</p>`
     );
 
     res.json({ message: 'Order placed', order_id: result.insertId });
@@ -163,10 +179,12 @@ app.post('/order', async (req, res) => {
   }
 });
 
-// ======================== ADMIN API =========================
+// ===== ADMIN API =====
 app.get('/admin/api/products', async (req, res) => {
   try {
-    const [products] = await pool.query('SELECT id, name, description, price, image_url FROM products ORDER BY id ASC LIMIT 1000');
+    const [products] = await pool.query(
+      'SELECT id, name, description, price, image_url FROM products ORDER BY id ASC LIMIT 1000'
+    );
     res.json(products);
   } catch (err) {
     console.error('Error fetching products:', err);
@@ -205,7 +223,7 @@ app.delete('/admin/products/:id', async (req, res) => {
   }
 });
 
-// ======= PRODUCT CREDENTIALS =======
+// ===== PRODUCT CREDENTIALS =====
 app.get('/admin/products/:id/credentials', async (req, res) => {
   const productId = req.params.id;
   try {
@@ -276,12 +294,12 @@ app.delete('/admin/products/:productId/credentials/:credId', async (req, res) =>
   }
 });
 
-// ✅ ROOT ROUTE FIXED TO LOAD MAIN PAGE
+// Serve main page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ==================== SERVER START ====================
+// Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
