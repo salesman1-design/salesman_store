@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin - Manage Orders</title>
   <style>
     body {
@@ -34,120 +34,136 @@
       width: 100%;
       border-collapse: collapse;
       margin-bottom: 30px;
+      background: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 6px;
+      overflow: hidden;
     }
     th, td {
-      padding: 10px;
-      border: 1px solid #dee2e6;
+      padding: 12px 15px;
+      border-bottom: 1px solid #ddd;
       text-align: left;
+      font-size: 14px;
     }
     th {
-      background-color: #343a40;
+      background-color: #007bff;
       color: white;
     }
-    tr:nth-child(even) {
+    tr:hover {
       background-color: #f1f1f1;
     }
-    .actions button {
-      margin-right: 5px;
-      padding: 5px 10px;
+    button.action-btn {
+      margin-right: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
       border: none;
-      border-radius: 3px;
+      border-radius: 4px;
       cursor: pointer;
       color: white;
     }
-    .accept-sale {
-      background-color: #28a745;
-    }
-    .accept-order {
+    button.accept-sale {
       background-color: #17a2b8;
     }
-    .decline {
-      background-color: #dc3545;
+    button.accept-order {
+      background-color: #28a745;
     }
-    @media (max-width: 600px) {
-      table, thead, tbody, th, td, tr {
-        display: block;
-      }
-      th, td {
-        padding: 10px;
-        text-align: right;
-      }
-      td::before {
-        content: attr(data-label);
-        float: left;
-        font-weight: bold;
-      }
+    button.decline {
+      background-color: #dc3545;
     }
   </style>
 </head>
 <body>
-  <h1>Admin Order Management</h1>
+
+  <h1>Admin - Manage Orders</h1>
 
   <div class="top-bar">
-    <a href="/admin/products">
-      <button>📦 Manage Products</button>
-    </a>
+    <a href="/admin/products"><button>Manage Products</button></a>
+    <button id="logoutBtn">Logout</button>
   </div>
 
   <table id="ordersTable">
     <thead>
       <tr>
-        <th>ID</th>
-        <th>Product</th>
-        <th>Email</th>
+        <th>Order ID</th>
+        <th>Product Name</th>
+        <th>Customer Email</th>
         <th>Status</th>
-        <th>Date</th>
+        <th>Placed At</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody>
-      <!-- Orders will be inserted here dynamically -->
+      <!-- Orders will be populated here -->
     </tbody>
   </table>
 
   <script>
     async function fetchOrders() {
-      const res = await fetch('/api/orders');
+      const res = await fetch('/admin/orders');
+      if (!res.ok) {
+        alert('Failed to load orders.');
+        return;
+      }
       const orders = await res.json();
-
       const tbody = document.querySelector('#ordersTable tbody');
       tbody.innerHTML = '';
 
+      if (orders.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No orders found.</td></tr>';
+        return;
+      }
+
       orders.forEach(order => {
         const tr = document.createElement('tr');
-
         tr.innerHTML = `
-          <td data-label="ID">${order.id}</td>
-          <td data-label="Product">${order.product_name}</td>
-          <td data-label="Email">${order.customer_email}</td>
-          <td data-label="Status">${order.status}</td>
-          <td data-label="Date">${new Date(order.created_at).toLocaleString()}</td>
-          <td class="actions" data-label="Actions">
-            <button class="accept-sale" onclick="handleAction(${order.id}, 'accept-sale')">Accept Sale</button>
-            <button class="accept-order" onclick="handleAction(${order.id}, 'accept-order')">Accept Order</button>
-            <button class="decline" onclick="handleAction(${order.id}, 'decline')">Decline</button>
+          <td>${order.id}</td>
+          <td>${order.product_name}</td>
+          <td>${order.customer_email}</td>
+          <td>${order.status}</td>
+          <td>${new Date(order.created_at).toLocaleString()}</td>
+          <td>
+            <button class="action-btn accept-sale" data-id="${order.id}">Accept Sale</button>
+            <button class="action-btn accept-order" data-id="${order.id}">Accept Order</button>
+            <button class="action-btn decline" data-id="${order.id}">Decline</button>
           </td>
         `;
         tbody.appendChild(tr);
       });
     }
 
-    async function handleAction(orderId, action) {
-      try {
-        const res = await fetch(`/admin/orders/${orderId}/${action}`, { method: 'POST' });
-        if (res.ok) {
-          alert('Action completed successfully.');
-          fetchOrders();
-        } else {
-          const err = await res.text();
-          alert('Error: ' + err);
-        }
-      } catch (error) {
-        alert('Request failed.');
+    async function handleAction(e) {
+      if (!e.target.classList.contains('action-btn')) return;
+
+      const orderId = e.target.dataset.id;
+      const action = e.target.textContent.toLowerCase().replace(' ', '_'); // accept_sale, accept_order, decline
+
+      const confirmed = confirm(`Are you sure you want to ${e.target.textContent} for order #${orderId}?`);
+      if (!confirmed) return;
+
+      const res = await fetch(`/admin/orders/${orderId}/${action}`, { method: 'POST' });
+
+      if (res.ok) {
+        alert(`${e.target.textContent} action completed.`);
+        fetchOrders();
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to perform action.');
       }
     }
 
+    document.querySelector('#ordersTable tbody').addEventListener('click', handleAction);
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      const res = await fetch('/admin/logout', { method: 'POST' });
+      if (res.ok) {
+        window.location.href = '/admin/login';
+      } else {
+        alert('Failed to logout.');
+      }
+    });
+
     fetchOrders();
   </script>
+
 </body>
 </html>

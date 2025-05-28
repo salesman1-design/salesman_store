@@ -1,540 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="description" content="Purchase in-game vehicles for Car Parking Multiplayer">
-  <title>Car Parking Multiplayer Store</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Car Sales Platform</title>
   <style>
-    :root {
-      --primary-color: #007bff;
-      --success-color: #28a745;
-      --danger-color: #dc3545;
-      --light-color: #f8f9fa;
-      --dark-color: #343a40;
-    }
-    
     body {
-      font-family: 'Segoe UI', Arial, sans-serif;
-      margin: 0;
+      font-family: Arial, sans-serif;
       padding: 20px;
-      background-color: #f4f4f4;
-      line-height: 1.6;
-    }
-    
-    header {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-    
-    h1 {
-      color: #333;
-      margin-bottom: 10px;
-    }
-    
-    .tagline {
-      color: #666;
-      font-style: italic;
-    }
-    
-    #search-container {
-      position: relative;
-      margin: 20px auto;
-      max-width: 600px;
-    }
-    
-    #search {
-      width: 100%;
-      padding: 12px 20px;
-      padding-left: 40px;
-      border-radius: 30px;
-      border: 1px solid #ccc;
-      font-size: 16px;
-      transition: all 0.3s;
-    }
-    
-    #search:focus {
-      outline: none;
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
-    }
-    
-    #search-icon {
-      position: absolute;
-      left: 15px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #777;
-    }
-    
-    #products {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 25px;
-      margin: 30px 0;
-    }
-    
-    .product {
-      background-color: #fff;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-      transition: transform 0.3s, box-shadow 0.3s;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-    }
-    
-    .product:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-    }
-    
-    .product-image {
-      width: 100%;
-      height: 180px;
-      object-fit: contain;
-      border-radius: 5px;
-      margin-bottom: 15px;
       background-color: #f8f9fa;
     }
-    
-    .product h3 {
-      margin: 0 0 10px;
-      color: var(--dark-color);
-      font-size: 1.2rem;
+    h1 {
+      text-align: center;
     }
-    
+    #searchBar {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 20px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    #productList {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 20px;
+    }
+    .product-card {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .product-card img {
+      width: 100%;
+      max-height: 150px;
+      object-fit: contain;
+      margin-bottom: 10px;
+    }
+    .product-info {
+      flex-grow: 1;
+    }
+    .product-name {
+      font-weight: bold;
+      font-size: 18px;
+      margin-bottom: 5px;
+    }
+    .product-price {
+      color: #28a745;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
     .product-description {
       font-size: 14px;
       color: #555;
+      margin-bottom: 10px;
+    }
+    form {
+      margin-top: 30px;
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
+    }
+    form h2 {
       margin-bottom: 15px;
-      flex-grow: 1;
+      text-align: center;
     }
-    
-    .product-price {
-      font-weight: bold;
-      color: var(--primary-color);
-      font-size: 1.1rem;
-      margin: 10px 0;
-    }
-    
-    .product button {
-      background-color: var(--success-color);
-      color: #fff;
+    form input, form select, form button {
+      width: 100%;
       padding: 10px;
-      border: none;
+      margin-bottom: 12px;
       border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-      transition: background-color 0.3s;
-      margin-top: auto;
-    }
-    
-    .product button:hover {
-      background-color: #218838;
-    }
-    
-    #order-modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0,0,0,0.5);
-      z-index: 1000;
-      justify-content: center;
-      align-items: center;
-    }
-    
-    #order-form {
-      background: #fff;
-      border-radius: 10px;
-      width: 90%;
-      max-width: 500px;
-      padding: 30px;
-      box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-      animation: modalFadeIn 0.3s;
-    }
-    
-    @keyframes modalFadeIn {
-      from { opacity: 0; transform: translateY(-20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    #order-form h2 {
-      text-align: center;
-      margin-bottom: 20px;
-      color: var(--dark-color);
-    }
-    
-    .form-group {
-      margin-bottom: 20px;
-    }
-    
-    .form-group label {
-      display: block;
-      margin-bottom: 8px;
-      font-weight: 600;
-      color: #555;
-    }
-    
-    .form-group input,
-    .form-group select {
-      width: 100%;
-      padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 5px;
+      border: 1px solid #ccc;
       font-size: 16px;
-      transition: border-color 0.3s;
     }
-    
-    .form-group input:focus,
-    .form-group select:focus {
-      outline: none;
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
-    }
-    
-    #submit-order {
-      background-color: var(--primary-color);
+    form button {
+      background-color: #007bff;
       color: white;
-      padding: 14px;
-      width: 100%;
       border: none;
-      border-radius: 5px;
-      font-size: 16px;
-      font-weight: bold;
       cursor: pointer;
-      transition: background-color 0.3s;
+      font-weight: bold;
     }
-    
-    #submit-order:hover {
+    form button:hover {
       background-color: #0056b3;
-    }
-    
-    #close-modal {
-      position: absolute;
-      top: 15px;
-      right: 15px;
-      background: none;
-      border: none;
-      font-size: 24px;
-      cursor: pointer;
-      color: #777;
-    }
-    
-    #close-modal:hover {
-      color: var(--danger-color);
-    }
-    
-    #secret-logo {
-      position: fixed;
-      top: 15px;
-      right: 20px;
-      width: 50px;
-      height: 50px;
-      cursor: pointer;
-      opacity: 0.7;
-      transition: opacity 0.3s, transform 0.3s;
-      z-index: 100;
-    }
-    
-    #secret-logo:hover {
-      opacity: 1;
-      transform: scale(1.1);
-    }
-    
-    .loading {
-      text-align: center;
-      padding: 30px;
-      color: #666;
-    }
-    
-    .spinner {
-      border: 4px solid rgba(0, 0, 0, 0.1);
-      border-radius: 50%;
-      border-top: 4px solid var(--primary-color);
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 0 auto;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    
-    .notification {
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      padding: 15px 25px;
-      background-color: var(--success-color);
-      color: white;
-      border-radius: 5px;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.2);
-      transform: translateX(200%);
-      transition: transform 0.3s;
-      z-index: 1000;
-    }
-    
-    .notification.show {
-      transform: translateX(0);
-    }
-    
-    @media (max-width: 768px) {
-      #products {
-        grid-template-columns: 1fr;
-      }
-      
-      #order-form {
-        width: 95%;
-        padding: 20px;
-      }
     }
   </style>
 </head>
 <body>
 
-  <img id="secret-logo" src="logo.png" alt="Admin Login" title="Double click for admin access">
+<h1>Car Sales Platform</h1>
 
-  <header>
-    <h1>OWN BY SALEMAN_EMPIRE & 1NEED_FOR_SPEED_</h1>
-    <p class="tagline">Premium in-game vehicles for Car Parking Multiplayer</p>
-  </header>
+<input type="text" id="searchBar" placeholder="Search products by name..." />
 
-  <div id="search-container">
-    <i id="search-icon">🔍</i>
-    <input type="text" id="search" placeholder="Search vehicles by name or description...">
-  </div>
+<div id="productList"></div>
 
-  <div id="products">
-    <div class="loading">
-      <div class="spinner"></div>
-      <p>Loading vehicles...</p>
-    </div>
-  </div>
+<form id="orderForm">
+  <h2>Place an Order</h2>
+  <select id="productSelect" required>
+    <option value="">Select a product</option>
+  </select>
+  <input type="email" id="customerEmail" placeholder="Your Email" required />
+  <button type="submit">Place Order</button>
+</form>
 
-  <div id="order-modal">
-    <div id="order-form">
-      <button id="close-modal">&times;</button>
-      <h2>Place Your Order</h2>
-      
-      <div class="form-group">
-        <label for="product">Select Vehicle:</label>
-        <select id="product" required></select>
-      </div>
-      
-      <div class="form-group">
-        <label for="email">Your Email:</label>
-        <input type="email" id="email" required placeholder="Enter your email for confirmation">
-      </div>
-      
-      <button type="submit" id="submit-order">Complete Purchase</button>
-    </div>
-  </div>
+<script>
+  let products = [];
 
-  <div id="notification" class="notification">Order placed successfully!</div>
+  async function fetchProducts() {
+    const res = await fetch('/api/products');
+    if (!res.ok) {
+      alert('Failed to load products.');
+      return;
+    }
+    products = await res.json();
+    renderProducts(products);
+    populateProductSelect(products);
+  }
 
-  <script>
-    // DOM Elements
-    const productsContainer = document.getElementById('products');
-    const productSelect = document.getElementById('product');
-    const searchInput = document.getElementById('search');
-    const orderModal = document.getElementById('order-modal');
-    const orderForm = document.getElementById('order-form');
-    const closeModal = document.getElementById('close-modal');
-    const notification = document.getElementById('notification');
+  function renderProducts(productsToRender) {
+    const container = document.getElementById('productList');
+    container.innerHTML = '';
+    if (productsToRender.length === 0) {
+      container.innerHTML = '<p>No products found.</p>';
+      return;
+    }
+    productsToRender.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'product-card';
+      card.innerHTML = `
+        <img src="${p.image_url || 'https://via.placeholder.com/150'}" alt="${p.name}" />
+        <div class="product-info">
+          <div class="product-name">${p.name}</div>
+          <div class="product-price">$${Number(p.price).toFixed(2)}</div>
+          <div class="product-description">${p.description || ''}</div>
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  }
 
-    // State
-    let products = [];
-    let selectedProductId = null;
+  function populateProductSelect(products) {
+    const select = document.getElementById('productSelect');
+    select.innerHTML = '<option value="">Select a product</option>';
+    products.forEach(p => {
+      const option = document.createElement('option');
+      option.value = p.id;
+      option.textContent = p.name;
+      select.appendChild(option);
+    });
+  }
 
-    // Fetch products from server
-    async function fetchProducts() {
-      try {
-        productsContainer.innerHTML = `
-          <div class="loading">
-            <div class="spinner"></div>
-            <p>Loading vehicles...</p>
-          </div>
-        `;
-        
-        const res = await fetch('/api/products');
-        if (!res.ok) throw new Error('Failed to fetch products');
-        
-        products = await res.json();
-        renderProducts(products);
-        populateSelect(products);
-      } catch (err) {
-        productsContainer.innerHTML = `
-          <div style="text-align: center; padding: 40px; color: #dc3545;">
-            <p>Error loading products. Please try again later.</p>
-            <button onclick="fetchProducts()" style="padding: 8px 16px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
-              Retry
-            </button>
-          </div>
-        `;
-        console.error('Error fetching products:', err);
-      }
+  document.getElementById('searchBar').addEventListener('input', e => {
+    const query = e.target.value.toLowerCase();
+    const filtered = products.filter(p => p.name.toLowerCase().includes(query));
+    renderProducts(filtered);
+    populateProductSelect(filtered);
+  });
+
+  document.getElementById('orderForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const productId = document.getElementById('productSelect').value;
+    const email = document.getElementById('customerEmail').value.trim();
+
+    if (!productId || !email) {
+      alert('Please select a product and enter your email.');
+      return;
     }
 
-    // Render products to the page
-    function renderProducts(data) {
-      if (data.length === 0) {
-        productsContainer.innerHTML = '<p style="text-align: center; grid-column: 1/-1;">No vehicles found matching your search.</p>';
-        return;
-      }
-      
-      productsContainer.innerHTML = '';
-      data.forEach(product => {
-        const card = document.createElement('div');
-        card.className = 'product';
-        card.innerHTML = `
-          <img src="${product.image_url || 'placeholder-vehicle.jpg'}" alt="${product.name}" class="product-image">
-          <h3>${product.name}</h3>
-          <p class="product-description">${product.description}</p>
-          <p class="product-price">$${product.price.toFixed(2)}</p>
-          <button data-id="${product.id}">Purchase Now</button>
-        `;
-        productsContainer.appendChild(card);
-      });
-      
-      // Add event listeners to all buy buttons
-      document.querySelectorAll('.product button').forEach(button => {
-        button.addEventListener('click', (e) => {
-          selectedProductId = e.target.getAttribute('data-id');
-          openOrderModal(selectedProductId);
-        });
-      });
-    }
-
-    // Populate the product select dropdown
-    function populateSelect(data) {
-      productSelect.innerHTML = '';
-      const defaultOption = document.createElement('option');
-      defaultOption.value = '';
-      defaultOption.textContent = '-- Select a vehicle --';
-      defaultOption.disabled = true;
-      defaultOption.selected = true;
-      productSelect.appendChild(defaultOption);
-      
-      data.forEach(product => {
-        const option = document.createElement('option');
-        option.value = product.id;
-        option.textContent = `${product.name} ($${product.price.toFixed(2)})`;
-        productSelect.appendChild(option);
-      });
-    }
-
-    // Filter products based on search input
-    function filterProducts() {
-      const term = searchInput.value.toLowerCase().trim();
-      const filtered = products.filter(p =>
-        p.name.toLowerCase().includes(term) || 
-        p.description.toLowerCase().includes(term)
-      );
-      renderProducts(filtered);
-      populateSelect(filtered);
-    }
-
-    // Modal functions
-    function openOrderModal(productId) {
-      orderModal.style.display = 'flex';
-      document.body.style.overflow = 'hidden';
-      if (productId) {
-        productSelect.value = productId;
-      }
-    }
-
-    function closeOrderModal() {
-      orderModal.style.display = 'none';
-      document.body.style.overflow = 'auto';
-    }
-
-    // Show notification
-    function showNotification(message, isSuccess = true) {
-      notification.textContent = message;
-      notification.style.backgroundColor = isSuccess ? '#28a745' : '#dc3545';
-      notification.classList.add('show');
-      
-      setTimeout(() => {
-        notification.classList.remove('show');
-      }, 3000);
-    }
-
-    // Handle form submission
-    async function submitOrder(e) {
-      e.preventDefault();
-      
-      const product_id = productSelect.value;
-      const customer_email = document.getElementById('email').value;
-      
-      if (!product_id || !customer_email) {
-        showNotification('Please fill all fields', false);
-        return;
-      }
-      
-      try {
-        const submitBtn = document.getElementById('submit-order');
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Processing...';
-        
-        const res = await fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ product_id, customer_email })
-        });
-        
-        const result = await res.json();
-        
-        if (res.ok) {
-          showNotification('Order placed successfully! Check your email for confirmation.');
-          orderForm.reset();
-          closeOrderModal();
-        } else {
-          showNotification(result.error || 'Failed to place order', false);
-        }
-      } catch (err) {
-        showNotification('Network error. Please try again.', false);
-        console.error('Order submission error:', err);
-      } finally {
-        const submitBtn = document.getElementById('submit-order');
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Complete Purchase';
-      }
-    }
-
-    // Event Listeners
-    searchInput.addEventListener('input', filterProducts);
-    orderForm.addEventListener('submit', submitOrder);
-    closeModal.addEventListener('click', closeOrderModal);
-    
-    // Close modal when clicking outside
-    orderModal.addEventListener('click', (e) => {
-      if (e.target === orderModal) {
-        closeOrderModal();
-      }
+    const res = await fetch('/order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ product_id: productId, customer_email: email })
     });
 
-    // Secret admin login trigger
-    let logoClicks = 0;
-    const logo = document.getElementById('secret-logo');
-    logo.addEventListener('click', () => {
-      logoClicks++;
-      if (logoClicks >= 2) {
-        window.location.href = '/admin/login';
-      }
-      setTimeout(() => { logoClicks = 0 }, 2000);
-    });
+    if (res.ok) {
+      alert('Order placed successfully. Please check your email for details.');
+      e.target.reset();
+    } else {
+      const err = await res.json();
+      alert(err.error || 'Failed to place order.');
+    }
+  });
 
-    // Initialize
-    document.addEventListener('DOMContentLoaded', fetchProducts);
-  </script>
+  fetchProducts();
+</script>
 
 </body>
 </html>

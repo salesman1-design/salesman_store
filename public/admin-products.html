@@ -1,188 +1,260 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Manage Products</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin - Manage Products & Credentials</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
-    th { background-color: #f2f2f2; }
-    input, button { padding: 6px; margin: 5px 0; }
-    img { max-width: 50px; }
-    .credential-row { margin-bottom: 6px; }
-    .credential-row input { margin-right: 5px; }
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f8f9fa;
+    }
+    h1 {
+      text-align: center;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .top-bar button {
+      padding: 10px 16px;
+      font-size: 14px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 30px;
+    }
+    th, td {
+      padding: 12px 15px;
+      border-bottom: 1px solid #ddd;
+      font-size: 14px;
+      text-align: left;
+    }
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+    tr:hover {
+      background-color: #f1f1f1;
+    }
+    input[type="text"], input[type="number"], input[type="url"] {
+      width: 100%;
+      padding: 8px;
+      margin: 4px 0;
+      box-sizing: border-box;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    button.action-btn {
+      padding: 6px 12px;
+      font-size: 13px;
+      margin-right: 6px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: white;
+    }
+    button.add-btn {
+      background-color: #28a745;
+    }
+    button.update-btn {
+      background-color: #17a2b8;
+    }
+    button.delete-btn {
+      background-color: #dc3545;
+    }
+    .form-inline {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+      align-items: center;
+    }
+    .form-inline > * {
+      flex: 1;
+      min-width: 120px;
+    }
   </style>
 </head>
 <body>
-  <h1>Manage Products</h1>
 
-  <form id="addProductForm">
-    <input type="text" id="name" placeholder="Product Name" required>
-    <input type="text" id="description" placeholder="Description">
-    <input type="number" step="0.01" id="price" placeholder="Price" required>
-    <input type="text" id="image_url" placeholder="Image URL">
-    <button type="submit">Add Product</button>
+  <h1>Admin - Manage Products & Credentials</h1>
+
+  <div class="top-bar">
+    <button id="goToOrders">Go to Orders</button>
+    <button id="logoutBtn">Logout</button>
+  </div>
+
+  <form id="addProductForm" class="form-inline">
+    <input type="text" id="newName" placeholder="Product Name" required />
+    <input type="text" id="newDescription" placeholder="Description" />
+    <input type="number" step="0.01" id="newPrice" placeholder="Price" required />
+    <input type="url" id="newImageUrl" placeholder="Image URL" />
+    <button type="submit" class="add-btn">Add Product</button>
   </form>
 
-  <table>
+  <table id="productsTable">
     <thead>
       <tr>
-        <th>ID</th><th>Name</th><th>Description</th><th>Price</th><th>Image</th><th>Credentials</th><th>Actions</th>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Price</th>
+        <th>Image URL</th>
+        <th>Emails (Credentials)</th>
+        <th>Actions</th>
       </tr>
     </thead>
-    <tbody id="productTableBody"></tbody>
+    <tbody>
+      <!-- Products will be loaded here -->
+    </tbody>
   </table>
 
   <script>
-    async function loadProducts() {
-      const res = await fetch('/admin/api/products');
+    async function fetchProducts() {
+      const res = await fetch('/admin/products');
+      if (!res.ok) {
+        alert('Failed to load products.');
+        return;
+      }
       const products = await res.json();
-      const tbody = document.getElementById('productTableBody');
+      const tbody = document.querySelector('#productsTable tbody');
       tbody.innerHTML = '';
-
-      for (const p of products) {
-        // Fetch credentials for this product
-        const credRes = await fetch(`/admin/products/${p.id}/credentials`);
-        const creds = credRes.ok ? await credRes.json() : [];
-
-        // Build credentials HTML
-        let credList = '';
-        if (creds.length > 0) {
-          credList = creds.map(c => `
-            <div class="credential-row">
-              <input type="email" id="email-${c.id}" value="${c.email}" style="width: 180px;" />
-              <input type="text" id="password-${c.id}" value="${c.password}" style="width: 120px;" />
-              <button onclick="updateCredential(${p.id}, ${c.id})">Save</button>
-              <button onclick="deleteCredential(${p.id}, ${c.id})">Delete</button>
-            </div>
-          `).join('');
-        } else {
-          credList = '<i>No credentials</i>';
-        }
-
-        // Add form to add new credential for this product
-        credList += `
-          <div style="margin-top:8px;">
-            <input type="email" id="new-email-${p.id}" placeholder="New Email" style="width: 180px;" />
-            <input type="text" id="new-password-${p.id}" placeholder="New Password" style="width: 120px;" />
-            <button onclick="addCredential(${p.id})">Add Credential</button>
-          </div>
-        `;
-
-        const row = document.createElement('tr');
-        row.innerHTML = `
+      products.forEach(p => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
           <td>${p.id}</td>
-          <td>${p.name}</td>
-          <td>${p.description}</td>
-          <td>${p.price}</td>
-          <td><img src="${p.image_url}" alt="Image"></td>
-          <td>${credList}</td>
-          <td><button onclick="deleteProduct(${p.id})">Delete Product</button></td>
+          <td><input type="text" data-id="${p.id}" class="edit-name" value="${p.name}" /></td>
+          <td><input type="text" data-id="${p.id}" class="edit-description" value="${p.description || ''}" /></td>
+          <td><input type="number" step="0.01" data-id="${p.id}" class="edit-price" value="${p.price}" /></td>
+          <td><input type="url" data-id="${p.id}" class="edit-image" value="${p.image_url || ''}" /></td>
+          <td><textarea data-id="${p.id}" class="edit-emails" rows="3" placeholder="One email-password pair per line (email,password)">${(p.credentials || []).map(c => c.email + ',' + c.password).join('\n')}</textarea></td>
+          <td>
+            <button class="action-btn update-btn" data-id="${p.id}">Update</button>
+            <button class="action-btn delete-btn" data-id="${p.id}">Delete</button>
+          </td>
         `;
-        tbody.appendChild(row);
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function addProduct(e) {
+      e.preventDefault();
+      const name = document.getElementById('newName').value.trim();
+      const description = document.getElementById('newDescription').value.trim();
+      const price = parseFloat(document.getElementById('newPrice').value);
+      const image_url = document.getElementById('newImageUrl').value.trim();
+
+      if (!name || isNaN(price)) {
+        alert('Name and valid price are required.');
+        return;
+      }
+
+      const res = await fetch('/admin/products', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, description, price, image_url })
+      });
+
+      if (res.ok) {
+        alert('Product added.');
+        e.target.reset();
+        fetchProducts();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to add product.');
+      }
+    }
+
+    async function updateProduct(id, name, description, price, image_url, credentialsRaw) {
+      // Parse credentials from textarea format:
+      // each line: email,password
+      const credentials = [];
+      if (credentialsRaw.trim()) {
+        const lines = credentialsRaw.trim().split('\n');
+        for (const line of lines) {
+          const parts = line.split(',');
+          if (parts.length === 2) {
+            credentials.push({ email: parts[0].trim(), password: parts[1].trim() });
+          }
+        }
+      }
+
+      const res = await fetch(`/admin/products/${id}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, description, price, image_url, credentials })
+      });
+
+      if (res.ok) {
+        alert('Product updated.');
+        fetchProducts();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to update product.');
       }
     }
 
     async function deleteProduct(id) {
-      if (confirm('Are you sure you want to delete this product?')) {
-        const res = await fetch('/admin/products/' + id, { method: 'DELETE' });
-        if (res.ok) {
-          alert('Product deleted');
-          loadProducts();
-        } else {
-          alert('Failed to delete product');
+      if (!confirm('Are you sure you want to delete this product?')) return;
+      const res = await fetch(`/admin/products/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        alert('Product deleted.');
+        fetchProducts();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to delete product.');
+      }
+    }
+
+    document.getElementById('addProductForm').addEventListener('submit', addProduct);
+
+    document.querySelector('#productsTable tbody').addEventListener('click', e => {
+      if (e.target.classList.contains('update-btn')) {
+        const id = e.target.dataset.id;
+        const row = e.target.closest('tr');
+        const name = row.querySelector('.edit-name').value.trim();
+        const description = row.querySelector('.edit-description').value.trim();
+        const price = parseFloat(row.querySelector('.edit-price').value);
+        const image_url = row.querySelector('.edit-image').value.trim();
+        const credentialsRaw = row.querySelector('.edit-emails').value;
+
+        if (!name || isNaN(price)) {
+          alert('Name and valid price are required.');
+          return;
         }
-      }
-    }
 
-    async function addCredential(productId) {
-      const emailInput = document.getElementById(`new-email-${productId}`);
-      const passwordInput = document.getElementById(`new-password-${productId}`);
-      const email = emailInput.value.trim();
-      const password = passwordInput.value.trim();
-
-      if (!email || !password) {
-        alert('Please enter both email and password');
-        return;
-      }
-
-      const res = await fetch(`/admin/products/${productId}/credentials`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (res.ok) {
-        alert('Credential added');
-        emailInput.value = '';
-        passwordInput.value = '';
-        loadProducts();
-      } else {
-        const err = await res.json();
-        alert('Error: ' + (err.error || 'Failed to add credential'));
-      }
-    }
-
-    async function updateCredential(productId, credId) {
-      const email = document.getElementById(`email-${credId}`).value.trim();
-      const password = document.getElementById(`password-${credId}`).value.trim();
-      if (!email || !password) {
-        alert('Please enter both email and password');
-        return;
-      }
-
-      const res = await fetch(`/admin/products/${productId}/credentials/${credId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (res.ok) {
-        alert('Credential updated');
-      } else {
-        const err = await res.json();
-        alert('Error: ' + (err.error || 'Failed to update credential'));
-      }
-    }
-
-    async function deleteCredential(productId, credId) {
-      if (!confirm('Are you sure you want to delete this credential?')) return;
-
-      const res = await fetch(`/admin/products/${productId}/credentials/${credId}`, {
-        method: 'DELETE',
-      });
-
-      if (res.ok) {
-        alert('Credential deleted');
-        loadProducts();
-      } else {
-        const err = await res.json();
-        alert('Error: ' + (err.error || 'Failed to delete credential'));
-      }
-    }
-
-    document.getElementById('addProductForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const body = {
-        name: document.getElementById('name').value,
-        description: document.getElementById('description').value,
-        price: document.getElementById('price').value,
-        image_url: document.getElementById('image_url').value
-      };
-      const res = await fetch('/admin/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      if (res.ok) {
-        e.target.reset();
-        loadProducts();
-      } else {
-        alert('Failed to add product');
+        updateProduct(id, name, description, price, image_url, credentialsRaw);
+      } else if (e.target.classList.contains('delete-btn')) {
+        const id = e.target.dataset.id;
+        deleteProduct(id);
       }
     });
 
-    loadProducts();
-  </script>
-</body>
-</html>
+    document.getElementById('goToOrders').addEventListener('click', () => {
+      window.location.href = '/admin/orders';
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      const res = await fetch('/admin/logout', { method: 'POST' });
+      if (res.ok) {
+        window.location.href = '/admin/login';
+      } else {
+        alert('Failed to logout.');
+      }
+    });
+
+    fetchProducts();
+  </
