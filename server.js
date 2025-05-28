@@ -21,7 +21,7 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  charset: 'utf8mb4'  // use utf8mb4 here
+  charset: 'utf8mb4'
 });
 
 // Force utf8mb4 on every new connection
@@ -45,7 +45,7 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 1000 * 60 * 60 * 2 // 2 hours
+    maxAge: 1000 * 60 * 60 * 2
   }
 }));
 
@@ -82,7 +82,7 @@ async function sendEmail(to, subject, html) {
 // Admin credentials
 const adminUser = {
   username: 'fastfire9',
-  passwordHash: '$2b$10$MS3zX/p7QVSHTaQbbhu4/.ZnfJBELLOp9hjybpX/QfvTbklQkQ1ZK' // hashed password
+  passwordHash: '$2b$10$MS3zX/p7QVSHTaQbbhu4/.ZnfJBELLOp9hjybpX/QfvTbklQkQ1ZK'
 };
 
 // ======================== AUTH =========================
@@ -147,20 +147,13 @@ app.post('/order', async (req, res) => {
     await sendEmail(
       process.env.SMTP_USER,
       `New Order Placed (Order ID: ${result.insertId})`,
-      `<p>New order placed.</p>
-       <p>Order ID: ${result.insertId}</p>
-       <p>Product ID: ${product_id}</p>
-       <p>Email: ${customer_email}</p>
-       <p>Status: Pending</p>`
+      `<p>New order placed.</p><p>Order ID: ${result.insertId}</p><p>Product ID: ${product_id}</p><p>Email: ${customer_email}</p><p>Status: Pending</p>`
     );
 
     await sendEmail(
       customer_email,
       'Order Received - Next Steps',
-      `<p>Thank you for your order. Please wait for confirmation.</p>
-       <p>You’ll receive a CashApp link if accepted.</p>
-       <p>Credentials are sent after payment.</p>
-       <p>The password resets in 1 hour and the email must not be reused.</p>`
+      `<p>Thank you for your order. Please wait for confirmation.</p><p>You’ll receive a CashApp link if accepted.</p><p>Credentials are sent after payment.</p><p>The password resets in 1 hour and the email must not be reused.</p>`
     );
 
     res.json({ message: 'Order placed', order_id: result.insertId });
@@ -201,7 +194,6 @@ app.post('/admin/products', async (req, res) => {
 
 app.delete('/admin/products/:id', async (req, res) => {
   const productId = req.params.id;
-
   try {
     const [result] = await pool.query('DELETE FROM products WHERE id = ?', [productId]);
     if (result.affectedRows === 0) return res.status(404).json({ error: 'Product not found' });
@@ -213,9 +205,7 @@ app.delete('/admin/products/:id', async (req, res) => {
   }
 });
 
-// ======= NEW: PRODUCT CREDENTIALS CRUD =======
-
-// Get all credentials for a product
+// ======= PRODUCT CREDENTIALS =======
 app.get('/admin/products/:id/credentials', async (req, res) => {
   const productId = req.params.id;
   try {
@@ -230,7 +220,6 @@ app.get('/admin/products/:id/credentials', async (req, res) => {
   }
 });
 
-// Add a new credential for a product
 app.post('/admin/products/:id/credentials', async (req, res) => {
   const productId = req.params.id;
   const { email, password } = req.body;
@@ -249,7 +238,6 @@ app.post('/admin/products/:id/credentials', async (req, res) => {
   }
 });
 
-// Update an existing credential
 app.put('/admin/products/:productId/credentials/:credId', async (req, res) => {
   const { productId, credId } = req.params;
   const { email, password } = req.body;
@@ -271,7 +259,6 @@ app.put('/admin/products/:productId/credentials/:credId', async (req, res) => {
   }
 });
 
-// Delete a credential
 app.delete('/admin/products/:productId/credentials/:credId', async (req, res) => {
   const { productId, credId } = req.params;
   try {
@@ -289,8 +276,12 @@ app.delete('/admin/products/:productId/credentials/:credId', async (req, res) =>
   }
 });
 
+// ✅ HEALTH CHECK ROUTE
+app.get('/', (req, res) => {
+  res.send('✅ App is alive!');
+});
+
 // ==================== SERVER START ====================
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
