@@ -276,9 +276,9 @@ app.delete('/admin/products/:productId/credentials/:credId', async (req, res) =>
   }
 });
 
-// ✅ HEALTH CHECK ROUTE
+// ✅ ROOT ROUTE FIXED TO LOAD MAIN PAGE
 app.get('/', (req, res) => {
-  res.send('✅ App is alive!');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ==================== SERVER START ====================
