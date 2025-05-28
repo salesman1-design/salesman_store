@@ -1,169 +1,93 @@
+<!-- public/admin-orders.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Admin - Manage Orders</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin - Orders</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background-color: #f8f9fa;
-    }
-    h1 {
-      text-align: center;
-    }
-    .top-bar {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 20px;
-    }
-    .top-bar a {
-      text-decoration: none;
-    }
-    .top-bar button {
-      padding: 10px 16px;
-      font-size: 14px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      cursor: pointer;
-      border-radius: 4px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-bottom: 30px;
+    body { font-family: Arial; background: #f4f4f4; margin: 0; padding: 20px; }
+    h1 { text-align: center; }
+    .order-card {
       background: white;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      border-radius: 6px;
-      overflow: hidden;
+      margin: 10px auto;
+      padding: 15px;
+      border-radius: 10px;
+      max-width: 600px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    th, td {
-      padding: 12px 15px;
-      border-bottom: 1px solid #ddd;
-      text-align: left;
-      font-size: 14px;
-    }
-    th {
-      background-color: #007bff;
-      color: white;
-    }
-    tr:hover {
-      background-color: #f1f1f1;
-    }
-    button.action-btn {
-      margin-right: 6px;
-      padding: 6px 12px;
-      font-size: 13px;
+    button {
+      margin: 5px;
+      padding: 8px 12px;
       border: none;
-      border-radius: 4px;
+      border-radius: 5px;
       cursor: pointer;
-      color: white;
     }
-    button.accept-sale {
-      background-color: #17a2b8;
-    }
-    button.accept-order {
-      background-color: #28a745;
-    }
-    button.decline {
-      background-color: #dc3545;
-    }
+    .accept-btn { background-color: #007bff; color: white; }
+    .deliver-btn { background-color: #28a745; color: white; }
+    .decline-btn { background-color: #dc3545; color: white; }
   </style>
 </head>
 <body>
-
-  <h1>Admin - Manage Orders</h1>
-
-  <div class="top-bar">
-    <a href="/admin/products"><button>Manage Products</button></a>
-    <button id="logoutBtn">Logout</button>
-  </div>
-
-  <table id="ordersTable">
-    <thead>
-      <tr>
-        <th>Order ID</th>
-        <th>Product Name</th>
-        <th>Customer Email</th>
-        <th>Status</th>
-        <th>Placed At</th>
-        <th>Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- Orders will be populated here -->
-    </tbody>
-  </table>
+  <h1>Admin - Orders</h1>
+  <div id="orders-container"></div>
 
   <script>
     async function fetchOrders() {
-      const res = await fetch('/admin/orders');
-      if (!res.ok) {
-        alert('Failed to load orders.');
+      const res = await fetch('/admin/orders', { credentials: 'include' });
+      if (res.status === 401) {
+        alert("You are not authorized. Please log in first.");
+        window.location.href = '/admin-login.html';
         return;
       }
-      const orders = await res.json();
-      const tbody = document.querySelector('#ordersTable tbody');
-      tbody.innerHTML = '';
 
-      if (orders.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No orders found.</td></tr>';
-        return;
-      }
+      const orders = await res.json();
+      const container = document.getElementById('orders-container');
+      container.innerHTML = '';
 
       orders.forEach(order => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${order.id}</td>
-          <td>${order.product_name}</td>
-          <td>${order.customer_email}</td>
-          <td>${order.status}</td>
-          <td>${new Date(order.created_at).toLocaleString()}</td>
-          <td>
-            <button class="action-btn accept-sale" data-id="${order.id}">Accept Sale</button>
-            <button class="action-btn accept-order" data-id="${order.id}">Accept Order</button>
-            <button class="action-btn decline" data-id="${order.id}">Decline</button>
-          </td>
+        const card = document.createElement('div');
+        card.className = 'order-card';
+        card.innerHTML = `
+          <p><strong>Product:</strong> ${order.product_name}</p>
+          <p><strong>Name:</strong> ${order.customer_name}</p>
+          <p><strong>Email:</strong> ${order.customer_email}</p>
+          <p><strong>Status:</strong> ${order.status}</p>
+          <button class="accept-btn" onclick="acceptSale(${order.id})">Accept Sale</button>
+          <button class="deliver-btn" onclick="acceptOrder(${order.id})">Send Credentials</button>
+          <button class="decline-btn" onclick="declineOrder(${order.id}, '${order.customer_email}')">Decline</button>
         `;
-        tbody.appendChild(tr);
+        container.appendChild(card);
       });
     }
 
-    async function handleAction(e) {
-      if (!e.target.classList.contains('action-btn')) return;
-
-      const orderId = e.target.dataset.id;
-      const action = e.target.textContent.toLowerCase().replace(' ', '_'); // accept_sale, accept_order, decline
-
-      const confirmed = confirm(`Are you sure you want to ${e.target.textContent} for order #${orderId}?`);
-      if (!confirmed) return;
-
-      const res = await fetch(`/admin/orders/${orderId}/${action}`, { method: 'POST' });
-
-      if (res.ok) {
-        alert(`${e.target.textContent} action completed.`);
-        fetchOrders();
-      } else {
-        const error = await res.json();
-        alert(error.error || 'Failed to perform action.');
-      }
+    async function acceptSale(id) {
+      await fetch(`/admin/orders/${id}/accept-sale`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      fetchOrders();
     }
 
-    document.querySelector('#ordersTable tbody').addEventListener('click', handleAction);
+    async function acceptOrder(id) {
+      await fetch(`/admin/orders/${id}/accept-order`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      fetchOrders();
+    }
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
-      const res = await fetch('/admin/logout', { method: 'POST' });
-      if (res.ok) {
-        window.location.href = '/admin/login';
-      } else {
-        alert('Failed to logout.');
-      }
-    });
+    async function declineOrder(id, email) {
+      await fetch(`/admin/orders/${id}/decline`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      fetchOrders();
+    }
 
     fetchOrders();
   </script>
-
 </body>
 </html>
