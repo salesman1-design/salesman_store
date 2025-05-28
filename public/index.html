@@ -9,104 +9,142 @@
       font-family: Arial, sans-serif;
       padding: 20px;
       background-color: #f8f9fa;
+      margin: 0;
     }
-    #logo {
-      display: block;
-      margin: 0 auto 15px auto;
-      max-width: 200px;
-      cursor: pointer;
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 10px;
     }
     h1 {
-      text-align: center;
-      margin-bottom: 20px;
+      margin: 0;
+      font-size: 2rem;
+      color: #333;
+    }
+    #logo {
+      max-width: 160px;
+      cursor: pointer;
+      user-select: none;
     }
     #searchBar {
       width: 100%;
-      padding: 10px;
-      margin-bottom: 20px;
+      padding: 12px 15px;
+      margin-bottom: 25px;
       font-size: 16px;
       border: 1px solid #ccc;
-      border-radius: 4px;
+      border-radius: 6px;
+      box-sizing: border-box;
+      transition: border-color 0.3s ease;
+    }
+    #searchBar:focus {
+      outline: none;
+      border-color: #007bff;
     }
     #productList {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 20px;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
     }
     .product-card {
       background: white;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgb(0 0 0 / 0.08);
       padding: 15px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      transition: transform 0.2s ease;
+    }
+    .product-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 20px rgb(0 0 0 / 0.12);
     }
     .product-card img {
       width: 100%;
-      max-height: 150px;
+      height: 160px;
       object-fit: contain;
-      margin-bottom: 10px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      background: #f0f0f0;
     }
     .product-info {
       flex-grow: 1;
+      margin-bottom: 12px;
     }
     .product-name {
-      font-weight: bold;
+      font-weight: 600;
       font-size: 18px;
-      margin-bottom: 5px;
+      color: #222;
+      margin-bottom: 6px;
     }
     .product-price {
       color: #28a745;
-      font-weight: bold;
-      margin-bottom: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      margin-bottom: 8px;
     }
     .product-description {
       font-size: 14px;
       color: #555;
-      margin-bottom: 10px;
+      line-height: 1.3;
+      min-height: 38px; /* Keep consistent height */
     }
     .buy-button {
-      padding: 10px;
+      padding: 10px 0;
       background-color: #007bff;
       color: white;
       border: none;
-      border-radius: 5px;
+      border-radius: 6px;
       cursor: pointer;
-      font-weight: bold;
+      font-weight: 600;
+      font-size: 16px;
       transition: background-color 0.3s ease;
+      width: 100%;
     }
     .buy-button:hover {
       background-color: #0056b3;
     }
     form {
-      margin-top: 30px;
-      max-width: 400px;
-      margin-left: auto;
-      margin-right: auto;
+      max-width: 420px;
+      margin: 0 auto 50px auto;
       background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgb(0 0 0 / 0.1);
+      padding: 25px 30px;
+      border-radius: 10px;
+      box-shadow: 0 4px 15px rgb(0 0 0 / 0.1);
+      font-size: 16px;
     }
     form h2 {
-      margin-bottom: 15px;
+      margin-bottom: 20px;
       text-align: center;
+      color: #333;
+      font-weight: 600;
     }
     form input, form select, form button {
       width: 100%;
-      padding: 10px;
-      margin-bottom: 12px;
-      border-radius: 5px;
+      padding: 12px 15px;
+      margin-bottom: 15px;
+      border-radius: 7px;
       border: 1px solid #ccc;
+      box-sizing: border-box;
       font-size: 16px;
+      transition: border-color 0.3s ease;
+    }
+    form input:focus, form select:focus {
+      outline: none;
+      border-color: #007bff;
     }
     form button {
       background-color: #007bff;
       color: white;
       border: none;
       cursor: pointer;
-      font-weight: bold;
+      font-weight: 700;
+      font-size: 18px;
+      transition: background-color 0.3s ease;
     }
     form button:hover {
       background-color: #0056b3;
@@ -115,10 +153,15 @@
 </head>
 <body>
 
-<!-- Logo at the top -->
-<img id="logo" src="https://via.placeholder.com/200x60?text=Car+Sales+Logo" alt="Car Sales Logo" />
-
-<h1>Car Sales Platform</h1>
+<header>
+  <h1>Car Sales Platform</h1>
+  <img
+    id="logo"
+    src="https://via.placeholder.com/160x50?text=Logo"
+    alt="Car Sales Logo"
+    title="Double-click to login as Admin"
+  />
+</header>
 
 <input type="text" id="searchBar" placeholder="Search products by name..." />
 
@@ -136,15 +179,21 @@
 <script>
   let products = [];
 
+  // Redirect admin login on double click of logo
+  document.getElementById('logo').addEventListener('dblclick', () => {
+    window.location.href = '/admin/login';
+  });
+
   async function fetchProducts() {
-    const res = await fetch('/api/products');
-    if (!res.ok) {
-      alert('Failed to load products.');
-      return;
+    try {
+      const res = await fetch('/api/products');
+      if (!res.ok) throw new Error('Failed to load products.');
+      products = await res.json();
+      renderProducts(products);
+      populateProductSelect(products);
+    } catch (error) {
+      alert(error.message);
     }
-    products = await res.json();
-    renderProducts(products);
-    populateProductSelect(products);
   }
 
   function renderProducts(productsToRender) {
@@ -158,7 +207,7 @@
       const card = document.createElement('div');
       card.className = 'product-card';
       card.innerHTML = `
-        <img src="${p.image_url || 'https://via.placeholder.com/150'}" alt="${p.name}" />
+        <img src="${p.image_url || 'https://via.placeholder.com/280x160?text=No+Image'}" alt="${p.name}" />
         <div class="product-info">
           <div class="product-name">${p.name}</div>
           <div class="product-price">$${Number(p.price).toFixed(2)}</div>
@@ -169,15 +218,12 @@
       container.appendChild(card);
     });
 
-    // Add click handlers for all buy buttons
-    const buyButtons = container.querySelectorAll('.buy-button');
-    buyButtons.forEach(button => {
+    // Attach buy button listeners
+    container.querySelectorAll('.buy-button').forEach(button => {
       button.addEventListener('click', () => {
         const productId = button.getAttribute('data-id');
-        // Set the product select dropdown to this product
         const select = document.getElementById('productSelect');
         select.value = productId;
-        // Scroll to the order form
         document.getElementById('orderForm').scrollIntoView({ behavior: 'smooth' });
       });
     });
@@ -211,18 +257,22 @@
       return;
     }
 
-    const res = await fetch('/order', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ product_id: productId, customer_email: email })
-    });
+    try {
+      const res = await fetch('/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: productId, customer_email: email })
+      });
 
-    if (res.ok) {
-      alert('Order placed successfully. Please check your email for details.');
-      e.target.reset();
-    } else {
-      const err = await res.json();
-      alert(err.error || 'Failed to place order.');
+      if (res.ok) {
+        alert('Order placed successfully. Please check your email for details.');
+        e.target.reset();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to place order.');
+      }
+    } catch (error) {
+      alert('Failed to place order. Please try again later.');
     }
   });
 
