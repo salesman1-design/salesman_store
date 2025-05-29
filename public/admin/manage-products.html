@@ -1,78 +1,112 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Manage Products</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Manage Product Credentials</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-    th { background-color: #f2f2f2; }
-    input, button { padding: 6px; margin: 5px 0; }
+    body {
+      background-color: #1e1e1e;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .product {
+      background: #2a2a2a;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 10px;
+    }
+
+    .product input {
+      display: block;
+      margin: 10px 0;
+      padding: 10px;
+      width: 100%;
+      border-radius: 5px;
+      border: none;
+    }
+
+    .product button {
+      padding: 10px 20px;
+      margin-top: 10px;
+      border: none;
+      background-color: #00bcd4;
+      color: #fff;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    .product button:hover {
+      background-color: #0097a7;
+    }
+
+    .manage-link {
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .manage-link a {
+      color: #00c853;
+      text-decoration: none;
+    }
+
+    .manage-link a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
-  <h1>Manage Products</h1>
+  <h1>Update Product Credentials</h1>
 
-  <form id="addProductForm">
-    <input type="text" id="name" placeholder="Product Name" required>
-    <input type="text" id="description" placeholder="Description">
-    <input type="number" id="price" placeholder="Price" required>
-    <input type="text" id="image_url" placeholder="Image URL">
-    <button type="submit">Add Product</button>
-  </form>
+  <div id="productList"></div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th><th>Name</th><th>Description</th><th>Price</th><th>Image</th><th>Action</th>
-      </tr>
-    </thead>
-    <tbody id="productTableBody"></tbody>
-  </table>
+  <div class="manage-link">
+    <a href="/admin-products.html">Back to Product Management</a>
+  </div>
 
   <script>
     async function loadProducts() {
-      const res = await fetch('/admin/products');
+      const res = await fetch('/get-products');
       const products = await res.json();
-      const tbody = document.getElementById('productTableBody');
-      tbody.innerHTML = '';
+      const container = document.getElementById('productList');
+      container.innerHTML = '';
+
       products.forEach(p => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${p.id}</td>
-          <td>${p.name}</td>
-          <td>${p.description}</td>
-          <td>${p.price}</td>
-          <td><img src="${p.image_url}" width="50"></td>
-          <td><button onclick="deleteProduct(${p.id})">Delete</button></td>
+        const div = document.createElement('div');
+        div.className = 'product';
+        div.innerHTML = `
+          <p><strong>Product ID: ${p.id}</strong></p>
+          <input type="email" id="email1-${p.id}" value="${p.email1}" placeholder="Email 1" />
+          <input type="password" id="password1-${p.id}" value="${p.password1}" placeholder="Password 1" />
+          <input type="email" id="email2-${p.id}" value="${p.email2}" placeholder="Email 2" />
+          <input type="password" id="password2-${p.id}" value="${p.password2}" placeholder="Password 2" />
+          <button onclick="updateCredentials(${p.id})">Update Credentials</button>
         `;
-        tbody.appendChild(row);
+        container.appendChild(div);
       });
     }
 
-    async function deleteProduct(id) {
-      if (confirm('Are you sure you want to delete this product?')) {
-        await fetch('/admin/products/' + id, { method: 'DELETE' });
-        loadProducts();
-      }
-    }
+    async function updateCredentials(id) {
+      const email1 = document.getElementById(`email1-${id}`).value;
+      const password1 = document.getElementById(`password1-${id}`).value;
+      const email2 = document.getElementById(`email2-${id}`).value;
+      const password2 = document.getElementById(`password2-${id}`).value;
 
-    document.getElementById('addProductForm').addEventListener('submit', async e => {
-      e.preventDefault();
-      const body = {
-        name: document.getElementById('name').value,
-        description: document.getElementById('description').value,
-        price: document.getElementById('price').value,
-        image_url: document.getElementById('image_url').value
-      };
-      await fetch('/admin/products', {
-        method: 'POST',
+      await fetch(`/update-credentials/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ email1, password1, email2, password2 })
       });
-      e.target.reset();
-      loadProducts();
-    });
+
+      alert('Credentials updated!');
+    }
 
     loadProducts();
   </script>

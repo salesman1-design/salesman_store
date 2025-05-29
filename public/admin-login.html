@@ -1,40 +1,41 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
   <title>Admin Login</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <h2>Admin Login</h2>
+  <h1>Admin Login</h1>
   <form id="loginForm">
-    <input type="text" name="username" placeholder="Username" required /><br />
-    <input type="password" name="password" placeholder="Password" required /><br />
+    <input type="password" id="code" placeholder="Enter admin code" required />
     <button type="submit">Login</button>
+    <p id="loginMessage"></p>
   </form>
 
   <script>
-    const form = document.getElementById('loginForm');
-    form.addEventListener('submit', async e => {
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const formData = new FormData(form);
-      const data = {
-        username: formData.get('username'),
-        password: formData.get('password'),
-      };
+      const code = document.getElementById('code').value;
 
-      const res = await fetch('/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
+      try {
+        const res = await fetch('/admin-login-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code })
+        });
 
-      if (res.ok) {
-        alert('Login successful');
-        window.location.href = '/admin/orders'; // redirect to admin page
-      } else {
-        const error = await res.json();
-        alert(error.error);
+        const data = await res.json();
+        if (data.success) {
+          window.location.href = '/admin-orders.html';
+        } else {
+          document.getElementById('loginMessage').textContent = `Invalid code. Attempts: ${data.attempts || 0}`;
+        }
+      } catch (err) {
+        document.getElementById('loginMessage').textContent = 'Login failed. Try again later.';
       }
     });
   </script>
 </body>
 </html>
+

@@ -2,92 +2,54 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Admin - Orders</title>
-  <style>
-    body { font-family: Arial; background: #f4f4f4; margin: 0; padding: 20px; }
-    h1 { text-align: center; }
-    .order-card {
-      background: white;
-      margin: 10px auto;
-      padding: 15px;
-      border-radius: 10px;
-      max-width: 600px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    button {
-      margin: 5px;
-      padding: 8px 12px;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    .accept-btn { background-color: #007bff; color: white; }
-    .deliver-btn { background-color: #28a745; color: white; }
-    .decline-btn { background-color: #dc3545; color: white; }
-  </style>
+  <title>Admin Orders</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <h1>Admin - Orders</h1>
-  <div id="orders-container"></div>
+  <h1>Order Management</h1>
+  <button onclick="logout()">Logout</button>
+  <a href="admin-products.html">Manage Products</a>
+  <div id="orders"></div>
+  <p id="message"></p>
 
   <script>
     async function fetchOrders() {
-      const res = await fetch('/admin/api/orders', { credentials: 'include' });
-      if (res.status === 401) {
-        alert("You are not authorized. Please log in first.");
-        window.location.href = '/admin-login.html';
-        return;
-      }
-
+      const res = await fetch('/get-orders');
       const orders = await res.json();
-      const container = document.getElementById('orders-container');
-      container.innerHTML = '';
-
-      orders.forEach(order => {
-        const card = document.createElement('div');
-        card.className = 'order-card';
-
-        // Escape single quotes in email for inline onclick
-        const safeEmail = order.customer_email.replace(/'/g, "\\'");
-
-        card.innerHTML = `
-          <p><strong>Product:</strong> ${order.name}</p>
-          <p><strong>Name:</strong> ${order.customer_name || 'N/A'}</p>
-          <p><strong>Email:</strong> ${order.customer_email}</p>
-          <p><strong>Status:</strong> ${order.status}</p>
-          <button class="accept-btn" onclick="acceptSale(${order.id})">Accept Sale</button>
-          <button class="deliver-btn" onclick="acceptOrder(${order.id})">Send Credentials</button>
-          <button class="decline-btn" onclick="declineOrder(${order.id}, '${safeEmail}')">Decline</button>
-        `;
-        container.appendChild(card);
-      });
+      const ordersDiv = document.getElementById('orders');
+      ordersDiv.innerHTML = orders.map(order => `
+        <div>
+          <p>Order ID: ${order.order_id}</p>
+          <p>Customer Email: ${order.customer_email}</p>
+          <p>Status: ${order.status}</p>
+          <button onclick="handleOrder('${order.order_id}', 'accept-sale')">Accept Sale</button>
+          <button onclick="handleOrder('${order.order_id}', 'accept-payment')">Accept Payment</button>
+          <button onclick="handleOrder('${order.order_id}', 'decline')">Decline</button>
+        </div>
+        <hr/>
+      `).join('');
     }
 
-    async function acceptSale(id) {
-      await fetch(`/admin/api/orders/${id}/accept-sale`, {
+    async function handleOrder(orderId, action) {
+      const res = await fetch('/order-action', {
         method: 'POST',
-        credentials: 'include'
-      });
-      fetchOrders();
-    }
-
-    async function acceptOrder(id) {
-      await fetch(`/admin/api/orders/${id}/accept-order`, {
-        method: 'POST',
-        credentials: 'include'
-      });
-      fetchOrders();
-    }
-
-    async function declineOrder(id, email) {
-      await fetch(`/admin/api/orders/${id}/decline`, {
-        method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ order_id: orderId, action })
       });
-      fetchOrders();
+
+      const msg = document.getElementById('message');
+      if (res.ok) {
+        msg.textContent = `Order ${orderId} processed as ${action}`;
+        fetchOrders();
+      } else {
+        msg.textContent = `Error processing order ${orderId}`;
+      }
+    }
+
+    function logout() {
+      fetch('/admin/logout').then(() => {
+        window.location.href = '/';
+      });
     }
 
     fetchOrders();

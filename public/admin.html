@@ -1,84 +1,78 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Panel - Car Platform</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Access</title>
   <style>
     body {
+      background-color: #1e1e1e;
+      color: #fff;
       font-family: Arial, sans-serif;
-      background-color: #f9f9f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
       margin: 0;
-      padding: 1rem;
     }
-    h1 {
+
+    .admin-panel {
+      background: #2a2a2a;
+      padding: 30px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 400px;
       text-align: center;
-      color: #333;
     }
-    table {
+
+    input {
       width: 100%;
-      border-collapse: collapse;
-      margin-top: 2rem;
+      padding: 12px;
+      margin-top: 10px;
+      margin-bottom: 20px;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
     }
-    th, td {
-      border: 1px solid #ccc;
-      padding: 0.75rem;
-      text-align: left;
-    }
-    th {
-      background-color: #007bff;
+
+    button {
+      background-color: #00c853;
+      border: none;
       color: white;
+      padding: 12px;
+      width: 100%;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
     }
-    tr:nth-child(even) {
-      background-color: #f2f2f2;
-    }
-    .status {
-      font-weight: bold;
-    }
-    .empty {
-      color: red;
+
+    button:hover {
+      background-color: #00b34f;
     }
   </style>
 </head>
 <body>
-  <h1>Admin Panel</h1>
-  <table id="product-table">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Name</th>
-        <th>Stock Status</th>
-        <th>Email 1</th>
-        <th>Email 2</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- Rows will be inserted here -->
-    </tbody>
-  </table>
+  <div class="admin-panel">
+    <h2>Enter Admin Backup Code</h2>
+    <input type="password" id="backupCode" placeholder="Enter backup code">
+    <button onclick="submitBackup()">Unlock Admin Panel</button>
+  </div>
 
   <script>
-    async function loadAdminData() {
-      const res = await fetch('/admin/products');
-      const data = await res.json();
-      const tbody = document.querySelector('#product-table tbody');
-
-      data.forEach(product => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${product.id}</td>
-          <td>${product.name}</td>
-          <td class="status ${product.email_1 && product.email_2 ? '' : 'empty'}">
-            ${(product.email_1 && product.email_2) ? 'Stocked' : 'Needs Update'}
-          </td>
-          <td>${product.email_1 || '---'}</td>
-          <td>${product.email_2 || '---'}</td>
-        `;
-        tbody.appendChild(tr);
+    function submitBackup() {
+      const code = document.getElementById('backupCode').value;
+      fetch('/admin-backup-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      }).then(res => res.json()).then(data => {
+        if (data.success) {
+          window.location.href = '/admin-orders.html';
+        } else {
+          alert(data.message);
+        }
       });
     }
-
-    loadAdminData();
   </script>
 </body>
 </html>
