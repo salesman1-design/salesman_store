@@ -1,4 +1,5 @@
 require('dotenv').config();
+
 const express = require('express');
 const mysql = require('mysql2');
 const nodemailer = require('nodemailer');
@@ -19,55 +20,58 @@ app.use(session({
   saveUninitialized: true,
 }));
 
-// Rate limiter for login route
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 10,
-  message: 'Too many login attempts. Please try again later.'
+  message: 'Too many login attempts. Please try again later.',
 });
 
-// Create MySQL connection
+// MySQL connection
 const db = mysql.createConnection({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
   database: process.env.DB_NAME,
-  charset: 'utf8mb4'
+  charset: 'utf8mb4',
 });
 
-// Connect to MySQL and handle errors
 db.connect((err) => {
   if (err) {
     console.error('MySQL connection error:', err);
-    process.exit(1); // exit app if DB connection fails
+    process.exit(1);
   }
-  console.log('Connected to MySQL database');
+  console.log('✅ Connected to MySQL database');
 });
 
 // Nodemailer setup
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT),
-  secure: process.env.SMTP_SECURE === 'true',
+  service: 'gmail',
   auth: {
     user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS
+    pass: process.env.SMTP_PASS,
+  },
+});
+
+transporter.verify((error, success) => {
+  if (error) {
+    console.error('❌ Email transport error:', error);
+  } else {
+    console.log('✅ Email transporter is ready to send messages.');
   }
 });
 
 let loginAttempts = 0;
+const credentialUsage = {};
 
-// Serve main pages
+// ROUTES
+
+// Serve frontend
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 app.get('/admin/login', (req, res) => res.sendFile(path.join(__dirname, 'public/admin-login.html')));
-app.get('/admin/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.redirect('/');
-  });
-});
+app.get('/admin/logout', (req, res) => req.session.destroy(() => res.redirect('/')));
 
-// Admin login check
+// Admin login
 app.post('/admin-login-check', loginLimiter, (req, res) => {
   const { code } = req.body;
   const adminUsername = process.env.ADMIN_USERNAME || 'fastfire9';
@@ -80,12 +84,14 @@ app.post('/admin-login-check', loginLimiter, (req, res) => {
   }
 
   loginAttempts++;
-  if (loginAttempts >= 3) {
+  if (loginAttempts === 3) {
     transporter.sendMail({
       from: process.env.SMTP_USER,
       to: process.env.OWNER_EMAIL,
       subject: 'Admin Login Warning',
-      text: 'There have been 3 failed login attempts to your car sales platform.'
+      text: 'There have been 3 failed login attempts to your car sales platform.',
+    }, (err) => {
+      if (err) console.error('❌ Failed to send login warning email:', err);
     });
   }
 
@@ -97,188 +103,188 @@ app.get('/admin-login-check', (req, res) => {
   res.status(401).json({ loggedIn: false });
 });
 
-// Get all products (public)
+// Fetch products
 app.get('/products', (req, res) => {
   db.query('SELECT * FROM products', (err, results) => {
-    if (err) {
-      console.error('DB error:', err);
-      return res.status(500).send('Something went wrong.');
-    }
+    if (err) return res.status(500).send('Failed to fetch products');
     res.json(results);
   });
 });
 
-// Place an order
+// Place order
 app.post('/order', (req, res) => {
   const { product_id, customer_email } = req.body;
-  if (!product_id || !customer_email) return res.status(400).send('Missing data');
+  if (!product_id || !customer_email) return res.status(400).send('Missing product_id or customer_email');
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(customer_email)) return res.status(400).send('Invalid email format');
 
-  const order_id = Math.floor(100000 + Math.random() * 900000);
-  const timestamp = new Date();
+  db.query('INSERT INTO orders (product_id, customer_email, status) VALUES (?, ?, ?)', [product_id, customer_email, 'pending'], (err, result) => {
+    if (err) return res.status(500).send('Order placement failed');
+    const insertedOrderId = result.insertId;
 
-  db.query(
-    'INSERT INTO orders (product_id, customer_email, order_id, time, status) VALUES (?, ?, ?, ?, ?)',
-    [product_id, customer_email, order_id, timestamp, 'pending'],
-    (err) => {
-      if (err) {
-        console.error('Order insert error:', err);
-        return res.status(500).send('Failed to place order');
-      }
+    db.query('SELECT * FROM products WHERE id = ?', [product_id], (err2, results2) => {
+      if (err2 || results2.length === 0) return res.status(500).send('Product not found');
+      const product = results2[0];
+      const time = new Date().toISOString();
 
-      db.query('SELECT * FROM products WHERE id = ?', [product_id], (err2, result) => {
-        if (err2 || result.length === 0) {
-          console.error('Product not found for order:', err2);
-          return res.status(500).send('Invalid product');
-        }
-        const product = result[0];
-
-        // Notify owner about new order
-        transporter.sendMail({
-          from: process.env.SMTP_USER,
-          to: process.env.OWNER_EMAIL,
-          subject: 'New Order Received',
-          text: `Email: ${customer_email}\nProduct ID: ${product_id}\nCost: $${product.price}\nTime: ${timestamp}\nOrder ID: ${order_id}`
-        });
-
-        res.sendStatus(200);
+      // Notify OWNER
+      transporter.sendMail({
+        from: process.env.SMTP_USER,
+        to: process.env.OWNER_EMAIL,
+        subject: 'New Order Received',
+        text: `Email: ${customer_email}\nProduct: ${product.name}\nPrice: $${product.price}\nTime: ${time}\nOrder ID: ${insertedOrderId}`,
       });
-    }
-  );
+
+      // Notify CUSTOMER
+      transporter.sendMail({
+        from: process.env.SMTP_USER,
+        to: customer_email,
+        subject: 'Order Confirmation',
+        text: `Thanks for your order!\nProduct: ${product.name}\nPrice: $${product.price}\nOrder ID: ${insertedOrderId}\nWe'll follow up with payment/login info shortly.`,
+      });
+
+      return res.status(200).json({ success: true, order_id: insertedOrderId });
+    });
+  });
 });
 
-// Get all orders (admin only)
+// Get orders (admin only)
 app.get('/get-orders', (req, res) => {
   if (!req.session.admin) return res.sendStatus(403);
   db.query('SELECT * FROM orders', (err, results) => {
-    if (err) {
-      console.error('Get orders error:', err);
-      return res.status(500).send('Something went wrong.');
-    }
+    if (err) return res.status(500).send('Failed to get orders');
     res.json(results);
   });
 });
 
-// Order actions (accept-sale, accept-payment, decline)
+// Handle order actions
 app.post('/order-action', (req, res) => {
   if (!req.session.admin) return res.sendStatus(403);
   const { action, order_id } = req.body;
-  if (!action || !order_id) return res.status(400).send('Missing data');
+  if (!action || !order_id) return res.status(400).send('Missing action or order_id');
 
-  db.query('SELECT * FROM orders WHERE order_id = ?', [order_id], (err, orderResults) => {
-    if (err || orderResults.length === 0) {
-      console.error('Order not found:', err);
-      return res.status(500).send('Order not found');
-    }
-    const order = orderResults[0];
+  db.query('SELECT * FROM orders WHERE id = ?', [order_id], (err, orders) => {
+    if (err || orders.length === 0) return res.status(404).send('Order not found');
+    const order = orders[0];
 
-    db.query('SELECT * FROM products WHERE id = ?', [order.product_id], (err2, productResults) => {
-      if (err2 || productResults.length === 0) {
-        console.error('Product not found:', err2);
-        return res.status(500).send('Product not found');
-      }
-      const product = productResults[0];
+    db.query('SELECT * FROM products WHERE id = ?', [order.product_id], (err2, products) => {
+      if (err2 || products.length === 0) return res.status(404).send('Product not found');
+      const product = products[0];
 
-      let subject = '', message = '';
+      let subject = '';
+      let message = '';
+
       if (action === 'accept-sale') {
         subject = 'Next Step: Payment';
-        message = `Please complete payment using our CashApp: https://cash.app/$YourTag\nThen wait for confirmation.`;
-      } else if (action === 'accept-payment') {
+        message = 'Please pay via CashApp. Your order will be completed once payment is confirmed: https://cash.app/$shayIrl';
+
+        db.query('UPDATE orders SET status = ? WHERE id = ?', ['payment_pending', order_id], () => {
+          transporter.sendMail({ from: process.env.SMTP_USER, to: order.customer_email, subject, text: message }, () => {
+            res.json({ success: true });
+          });
+        });
+        return;
+      }
+
+      if (action === 'accept-payment') {
         subject = 'Your Product Access Info';
-        message = `Here are your login details:\nEmail 1: ${product.email1}, Password: ${product.password1}\nEmail 2: ${product.email2}, Password: ${product.password2}\nThank you for shopping with us!`;
-      } else if (action === 'decline') {
+        const key = `product_${product.id}`;
+        credentialUsage[key] = (credentialUsage[key] || 0) + 1;
+
+        if (credentialUsage[key] === 1) {
+          message = `Login Info:\nEmail: ${product.email1}\nPassword: ${product.password1}`;
+        } else if (credentialUsage[key] === 2) {
+          message = `Login Info:\nEmail: ${product.email2}\nPassword: ${product.password2}`;
+          transporter.sendMail({
+            from: process.env.SMTP_USER,
+            to: process.env.OWNER_EMAIL,
+            subject: 'Credential Restock Needed',
+            text: `⚠️ Both credentials for "${product.name}" (ID ${product.id}) have been used. Please update them.`,
+          });
+        } else {
+          message = '⚠️ Credentials exhausted. Please contact @salesman_empire on Instagram.';
+        }
+      }
+
+      if (action === 'decline') {
         subject = 'Order Declined';
-        message = `Order has been declined due to failure to pay or product unavailability.\nIf this is an error, please contact @salesman_empire on Instagram.`;
-      } else {
-        return res.status(400).send('Invalid action');
+        message = 'Order was declined due to failure to pay or product not available. Contact owner at @salesman_empire on Instagram';
       }
 
       transporter.sendMail({
         from: process.env.SMTP_USER,
         to: order.customer_email,
         subject,
-        text: message
-      });
-
-      // Delete order after action
-      db.query('DELETE FROM orders WHERE order_id = ?', [order_id], (err3) => {
-        if (err3) {
-          console.error('Failed to delete order:', err3);
-          return res.status(500).send('Failed to complete action');
+        text: message,
+      }, () => {
+        if (action === 'accept-payment' || action === 'decline') {
+          db.query('DELETE FROM orders WHERE id = ?', [order_id], () => res.json({ success: true }));
+        } else {
+          res.json({ success: true });
         }
-        res.sendStatus(200);
       });
     });
   });
 });
 
-// Add new product (admin)
-app.post('/add-product', (req, res) => {
+// ADMIN PRODUCT MANAGEMENT
+
+// Add product
+app.post('/admin-products/add', (req, res) => {
   if (!req.session.admin) return res.sendStatus(403);
   const { name, description, price, image, email1, password1, email2, password2 } = req.body;
-  if (!name || !price) return res.status(400).send('Missing required fields');
+  if (!name || !price || !email1 || !password1 || !email2 || !password2) return res.status(400).send('Missing required product fields');
 
-  const sql = `INSERT INTO products (name, description, price, image, email1, password1, email2, password2) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
-  db.query(sql, [name, description || '', price, image || '', email1 || '', password1 || '', email2 || '', password2 || ''], (err) => {
-    if (err) {
-      console.error('Add product error:', err);
-      return res.status(500).send('Failed to add product');
+  db.query(
+    'INSERT INTO products (name, description, price, image, email1, password1, email2, password2) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [name, description || '', price, image || '', email1, password1, email2, password2],
+    (err) => {
+      if (err) return res.status(500).send('Failed to add product');
+      res.json({ success: true });
     }
-    res.sendStatus(200);
-  });
+  );
 });
 
-// Update product info (admin)
-app.put('/update-product/:id', (req, res) => {
+// Delete product
+app.post('/admin-products/delete', (req, res) => {
   if (!req.session.admin) return res.sendStatus(403);
-  const { id } = req.params;
-  const { name, description, price, image } = req.body;
-
-  if (!name || !price) return res.status(400).send('Missing required fields');
-
-  const sql = `UPDATE products SET name = ?, description = ?, price = ?, image = ? WHERE id = ?`;
-  db.query(sql, [name, description || '', price, image || '', id], (err) => {
-    if (err) {
-      console.error('Update product error:', err);
-      return res.status(500).send('Failed to update product');
-    }
-    res.sendStatus(200);
-  });
-});
-
-// Update credentials (admin)
-app.put('/update-credentials/:id', (req, res) => {
-  if (!req.session.admin) return res.sendStatus(403);
-  const { id } = req.params;
-  const { email1, password1, email2, password2 } = req.body;
-
-  const sql = `UPDATE products SET email1 = ?, password1 = ?, email2 = ?, password2 = ? WHERE id = ?`;
-  db.query(sql, [email1 || '', password1 || '', email2 || '', password2 || '', id], (err) => {
-    if (err) {
-      console.error('Update credentials error:', err);
-      return res.status(500).send('Failed to update credentials');
-    }
-    res.sendStatus(200);
-  });
-});
-
-// Delete product (admin)
-app.delete('/delete-product/:id', (req, res) => {
-  if (!req.session.admin) return res.sendStatus(403);
-  const { id } = req.params;
+  const { id } = req.body;
+  if (!id) return res.status(400).send('Product ID is required');
 
   db.query('DELETE FROM products WHERE id = ?', [id], (err) => {
-    if (err) {
-      console.error('Delete product error:', err);
-      return res.status(500).send('Failed to delete product');
-    }
-    res.sendStatus(200);
+    if (err) return res.status(500).send('Failed to delete product');
+    res.json({ success: true });
   });
 });
 
+// Update product
+app.post('/admin-products/update', (req, res) => {
+  if (!req.session.admin) return res.sendStatus(403);
+  const { id, name, description, price, image, email1, password1, email2, password2 } = req.body;
+  if (!id || !name || !price || !email1 || !password1 || !email2 || !password2) return res.status(400).send('Missing product fields');
+
+  db.query(
+    'UPDATE products SET name = ?, description = ?, price = ?, image = ?, email1 = ?, password1 = ?, email2 = ?, password2 = ? WHERE id = ?',
+    [name, description || '', price, image || '', email1, password1, email2, password2, id],
+    (err) => {
+      if (err) return res.status(500).send('Failed to update product');
+      res.json({ success: true });
+    }
+  );
+});
+
+// Get all products (admin only)
+app.get('/admin-products/get', (req, res) => {
+  if (!req.session.admin) return res.sendStatus(403);
+  db.query('SELECT * FROM products', (err, results) => {
+    if (err) return res.status(500).send('Failed to fetch products');
+    res.json(results);
+  });
+});
+
+// Server startup
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚗 Server is running on http://localhost:${PORT}`);
 });

@@ -1,196 +1,217 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Admin - Manage Products</title>
-<style>
-  body { background: #121212; color: white; font-family: Arial, sans-serif; padding: 20px; }
-  table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  th, td { padding: 10px; border: 1px solid #333; text-align: left; }
-  input, button { padding: 6px; margin: 4px 0; width: 100%; box-sizing: border-box; }
-  button { cursor: pointer; }
-  .product-row:hover { background: #222; }
-  .form-section { background: #222; padding: 15px; margin-bottom: 20px; border-radius: 8px; }
-</style>
+  <meta charset="UTF-8" />
+  <title>Manage Products</title>
+  <style>
+    body {
+      background: #1e1e1e;
+      color: #f0f0f0;
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      max-width: 900px;
+      margin: auto;
+    }
+    h1, h2 {
+      color: #00d1b2;
+    }
+    form {
+      background: #2b2b2b;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      border-radius: 10px;
+    }
+    input, textarea {
+      display: block;
+      width: 100%;
+      margin-bottom: 1rem;
+      padding: 0.6rem;
+      background: #3c3c3c;
+      border: none;
+      border-radius: 6px;
+      color: white;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      margin-right: 0.5rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .submit {
+      background: #00c851;
+      color: white;
+    }
+    .edit {
+      background: #33b5e5;
+      color: white;
+    }
+    .delete {
+      background: #ff4444;
+      color: white;
+    }
+    .product {
+      background: #2c2c2c;
+      padding: 1rem;
+      border-radius: 10px;
+      margin-bottom: 1.5rem;
+    }
+    img.vehicle {
+      width: 100%;
+      max-width: 400px;
+      height: auto;
+      border-radius: 10px;
+      margin-top: 0.5rem;
+    }
+  </style>
 </head>
 <body>
 
 <h1>Manage Products</h1>
 
-<!-- Add new product -->
-<div class="form-section">
-  <h2>Add New Product</h2>
-  <form id="addProductForm">
-    <input type="text" id="addName" placeholder="Product Name" required />
-    <input type="text" id="addDescription" placeholder="Description" />
-    <input type="number" step="0.01" id="addPrice" placeholder="Price" required />
-    <input type="text" id="addImage" placeholder="Image URL" />
-    <input type="email" id="addEmail1" placeholder="Email 1" />
-    <input type="text" id="addPassword1" placeholder="Password 1" />
-    <input type="email" id="addEmail2" placeholder="Email 2" />
-    <input type="text" id="addPassword2" placeholder="Password 2" />
-    <button type="submit">Add Product</button>
-  </form>
-</div>
+<h2>Add New Product</h2>
+<form id="add-form">
+  <input type="text" id="name" placeholder="Product Name">
+  <textarea id="description" placeholder="Description"></textarea>
+  <input type="text" id="price" placeholder="Price">
+  <input type="text" id="image" placeholder="Image URL">
+  <input type="text" id="email1" placeholder="Email 1">
+  <input type="text" id="password1" placeholder="Password 1">
+  <input type="text" id="email2" placeholder="Email 2">
+  <input type="text" id="password2" placeholder="Password 2">
+  <button class="submit" type="submit">Add Product</button>
+</form>
 
-<!-- Product list -->
-<table id="productsTable">
-  <thead>
-    <tr>
-      <th>Name</th><th>Description</th><th>Price</th><th>Image URL</th>
-      <th>Email 1</th><th>Password 1</th><th>Email 2</th><th>Password 2</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    <!-- Rows get inserted here -->
-  </tbody>
-</table>
+<h2>Edit Product</h2>
+<form id="edit-form" style="display: none;">
+  <input type="hidden" id="edit-id">
+  <input type="text" id="edit-name" placeholder="Product Name">
+  <textarea id="edit-description" placeholder="Description"></textarea>
+  <input type="text" id="edit-price" placeholder="Price">
+  <input type="text" id="edit-image" placeholder="Image URL">
+  <input type="text" id="edit-email1" placeholder="Email 1">
+  <input type="text" id="edit-password1" placeholder="Password 1">
+  <input type="text" id="edit-email2" placeholder="Email 2">
+  <input type="text" id="edit-password2" placeholder="Password 2">
+  <button class="submit" type="submit">Update Product</button>
+</form>
+
+<div id="product-list"></div>
 
 <script>
-  const productsTableBody = document.querySelector('#productsTable tbody');
-  const addForm = document.getElementById('addProductForm');
+  const addForm = document.getElementById('add-form');
+  const editForm = document.getElementById('edit-form');
+  const productList = document.getElementById('product-list');
 
-  // Load products from backend
-  async function loadProducts() {
-    const res = await fetch('/products');
-    const products = await res.json();
-    productsTableBody.innerHTML = '';
-
-    products.forEach(prod => {
-      const tr = document.createElement('tr');
-      tr.classList.add('product-row');
-
-      tr.innerHTML = `
-        <td><input type="text" value="${prod.name || ''}" data-id="${prod.id}" data-field="name" /></td>
-        <td><input type="text" value="${prod.description || ''}" data-id="${prod.id}" data-field="description" /></td>
-        <td><input type="number" step="0.01" value="${prod.price || ''}" data-id="${prod.id}" data-field="price" /></td>
-        <td><input type="text" value="${prod.image || ''}" data-id="${prod.id}" data-field="image" /></td>
-        <td><input type="email" value="${prod.email1 || ''}" data-id="${prod.id}" data-cred="email1" /></td>
-        <td><input type="text" value="${prod.password1 || ''}" data-id="${prod.id}" data-cred="password1" /></td>
-        <td><input type="email" value="${prod.email2 || ''}" data-id="${prod.id}" data-cred="email2" /></td>
-        <td><input type="text" value="${prod.password2 || ''}" data-id="${prod.id}" data-cred="password2" /></td>
-        <td>
-          <button data-id="${prod.id}" class="updateProductBtn">Update Info</button>
-          <button data-id="${prod.id}" class="updateCredsBtn">Update Credentials</button>
-          <button data-id="${prod.id}" class="deleteProductBtn">Delete</button>
-        </td>
-      `;
-
-      productsTableBody.appendChild(tr);
-    });
-
-    // Add event listeners after rows created
-    document.querySelectorAll('.updateProductBtn').forEach(btn => {
-      btn.addEventListener('click', updateProductHandler);
-    });
-    document.querySelectorAll('.updateCredsBtn').forEach(btn => {
-      btn.addEventListener('click', updateCredentialsHandler);
-    });
-    document.querySelectorAll('.deleteProductBtn').forEach(btn => {
-      btn.addEventListener('click', deleteProductHandler);
-    });
+  function loadProducts() {
+    fetch('/products')
+      .then(res => res.json())
+      .then(products => {
+        productList.innerHTML = '';
+        products.forEach(product => {
+          const div = document.createElement('div');
+          div.className = 'product';
+          div.innerHTML = `
+            <strong>${product.name || 'No Name'}</strong><br>
+            ${product.price ? `Price: $${product.price}<br>` : ''}
+            ${product.description ? `Description: ${product.description}<br>` : ''}
+            ${product.image ? `<img class="vehicle" src="${product.image}" alt="Vehicle Image">` : ''}
+            <br>
+            <button class="edit" onclick='editProduct(${JSON.stringify(product)})'>Edit</button>
+            <button class="delete" onclick='deleteProduct(${product.id})'>Delete</button>
+          `;
+          productList.appendChild(div);
+        });
+      });
   }
 
-  async function updateProductHandler(event) {
-    const id = event.target.dataset.id;
-    // Find inputs for name, description, price, image in same row
-    const row = event.target.closest('tr');
-    const name = row.querySelector('input[data-field="name"]').value.trim();
-    const description = row.querySelector('input[data-field="description"]').value.trim();
-    const price = row.querySelector('input[data-field="price"]').value.trim();
-    const image = row.querySelector('input[data-field="image"]').value.trim();
-
-    if (!name || !price) {
-      alert('Name and price are required');
-      return;
-    }
-
-    const response = await fetch(`/update-product/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, price, image })
-    });
-
-    if (response.ok) {
-      alert('Product info updated!');
-      loadProducts();
-    } else {
-      alert('Failed to update product');
-    }
+  function editProduct(product) {
+    editForm.style.display = 'block';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.getElementById('edit-id').value = product.id;
+    document.getElementById('edit-name').value = product.name || '';
+    document.getElementById('edit-description').value = product.description || '';
+    document.getElementById('edit-price').value = product.price || '';
+    document.getElementById('edit-image').value = product.image || '';
+    document.getElementById('edit-email1').value = product.email1 || '';
+    document.getElementById('edit-password1').value = product.password1 || '';
+    document.getElementById('edit-email2').value = product.email2 || '';
+    document.getElementById('edit-password2').value = product.password2 || '';
   }
 
-  async function updateCredentialsHandler(event) {
-    const id = event.target.dataset.id;
-    const row = event.target.closest('tr');
-    const email1 = row.querySelector('input[data-cred="email1"]').value.trim();
-    const password1 = row.querySelector('input[data-cred="password1"]').value.trim();
-    const email2 = row.querySelector('input[data-cred="email2"]').value.trim();
-    const password2 = row.querySelector('input[data-cred="password2"]').value.trim();
-
-    const response = await fetch(`/update-credentials/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email1, password1, email2, password2 })
-    });
-
-    if (response.ok) {
-      alert('Credentials updated!');
-      loadProducts();
-    } else {
-      alert('Failed to update credentials');
-    }
-  }
-
-  async function deleteProductHandler(event) {
-    if (!confirm('Delete this product?')) return;
-    const id = event.target.dataset.id;
-
-    const response = await fetch(`/delete-product/${id}`, { method: 'DELETE' });
-    if (response.ok) {
-      alert('Product deleted!');
-      loadProducts();
-    } else {
-      alert('Failed to delete product');
-    }
-  }
-
-  addForm.addEventListener('submit', async (e) => {
+  addForm.addEventListener('submit', e => {
     e.preventDefault();
-
-    const name = document.getElementById('addName').value.trim();
-    const description = document.getElementById('addDescription').value.trim();
-    const price = document.getElementById('addPrice').value.trim();
-    const image = document.getElementById('addImage').value.trim();
-    const email1 = document.getElementById('addEmail1').value.trim();
-    const password1 = document.getElementById('addPassword1').value.trim();
-    const email2 = document.getElementById('addEmail2').value.trim();
-    const password2 = document.getElementById('addPassword2').value.trim();
-
-    if (!name || !price) {
-      alert('Name and price are required');
-      return;
-    }
-
-    const response = await fetch('/add-product', {
+    const body = {
+      name: document.getElementById('name').value,
+      description: document.getElementById('description').value,
+      price: document.getElementById('price').value,
+      image: document.getElementById('image').value,
+      email1: document.getElementById('email1').value,
+      password1: document.getElementById('password1').value,
+      email2: document.getElementById('email2').value,
+      password2: document.getElementById('password2').value
+    };
+    fetch('/admin/add', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, price, image, email1, password1, email2, password2 })
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    }).then(res => {
+      if (res.ok) {
+        addForm.reset();
+        loadProducts();
+      } else {
+        alert('Failed to add product');
+      }
     });
-
-    if (response.ok) {
-      alert('Product added!');
-      addForm.reset();
-      loadProducts();
-    } else {
-      alert('Failed to add product');
-    }
   });
 
-  // Load products on page load
+  editForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const body = {
+      id: document.getElementById('edit-id').value,
+      name: document.getElementById('edit-name').value,
+      description: document.getElementById('edit-description').value,
+      price: document.getElementById('edit-price').value,
+      image: document.getElementById('edit-image').value,
+      email1: document.getElementById('edit-email1').value,
+      password1: document.getElementById('edit-password1').value,
+      email2: document.getElementById('edit-email2').value,
+      password2: document.getElementById('edit-password2').value
+    };
+    fetch('/admin/update', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body)
+    }).then(res => {
+      if (res.ok) {
+        editForm.reset();
+        editForm.style.display = 'none';
+        loadProducts();
+      } else {
+        alert('Failed to update product');
+      }
+    });
+  });
+
+  function deleteProduct(id) {
+    if (!confirm('Are you sure you want to delete this product?')) return;
+    fetch('/admin/delete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ id })
+    }).then(res => {
+      if (res.ok) {
+        loadProducts();
+      } else {
+        alert('Failed to delete product');
+      }
+    });
+  }
+
   loadProducts();
 </script>
 
 </body>
 </html>
+

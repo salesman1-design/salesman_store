@@ -2,58 +2,122 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Admin Orders</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin - Manage Orders</title>
+  <style>
+    body {
+      background: #222;
+      color: #eee;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+    }
+    button {
+      margin: 0 5px 5px 0;
+      padding: 5px 10px;
+      background: #444;
+      color: #eee;
+      border: none;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    button:hover {
+      background: #666;
+    }
+    hr {
+      border-color: #555;
+    }
+    #orders {
+      margin-top: 20px;
+    }
+    #top-bar {
+      margin-bottom: 20px;
+    }
+    #product-manage-link {
+      color: #0af;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+  </style>
 </head>
 <body>
-  <h1>Order Management</h1>
-  <button onclick="logout()">Logout</button>
-  <a href="admin-products.html">Manage Products</a>
-  <div id="orders"></div>
-  <p id="message"></p>
+  <h1>Admin Orders Management</h1>
+  <div id="top-bar">
+    <span id="product-manage-link">Go to Product Management</span>
+    <button id="logoutBtn" style="float:right;">Logout</button>
+  </div>
+
+  <div id="orders">
+    <!-- Orders will be loaded here -->
+  </div>
 
   <script>
+    const ordersDiv = document.getElementById('orders');
+    const productManageLink = document.getElementById('product-manage-link');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    // Link to product management page
+    productManageLink.addEventListener('click', () => {
+      window.location.href = '/admin-products.html';
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      fetch('/admin/logout')
+        .then(() => {
+          window.location.href = '/admin/login';
+        });
+    });
+
     async function fetchOrders() {
-      const res = await fetch('/get-orders');
-      const orders = await res.json();
-      const ordersDiv = document.getElementById('orders');
-      ordersDiv.innerHTML = orders.map(order => `
-        <div>
-          <p>Order ID: ${order.order_id}</p>
-          <p>Customer Email: ${order.customer_email}</p>
-          <p>Status: ${order.status}</p>
-          <button onclick="handleOrder('${order.order_id}', 'accept-sale')">Accept Sale</button>
-          <button onclick="handleOrder('${order.order_id}', 'accept-payment')">Accept Payment</button>
-          <button onclick="handleOrder('${order.order_id}', 'decline')">Decline</button>
-        </div>
-        <hr/>
-      `).join('');
-    }
+      try {
+        const response = await fetch('/get-orders');
+        if (!response.ok) throw new Error('Not authorized or error fetching orders');
 
-    async function handleOrder(orderId, action) {
-      const res = await fetch('/order-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order_id: orderId, action })
-      });
+        const orders = await response.json();
+        if (!orders.length) {
+          ordersDiv.innerHTML = '<p>No current orders.</p>';
+          return;
+        }
 
-      const msg = document.getElementById('message');
-      if (res.ok) {
-        msg.textContent = `Order ${orderId} processed as ${action}`;
-        fetchOrders();
-      } else {
-        msg.textContent = `Error processing order ${orderId}`;
+        ordersDiv.innerHTML = orders.map(order => `
+          <div>
+            <p><strong>Order ID:</strong> ${order.id}</p>
+            <p><strong>Customer Email:</strong> ${order.customer_email}</p>
+            <p><strong>Status:</strong> ${order.status}</p>
+            <button onclick="handleOrder('${order.id}', 'accept-sale')">Accept Sale</button>
+            <button onclick="handleOrder('${order.id}', 'accept-payment')">Accept Payment</button>
+            <button onclick="handleOrder('${order.id}', 'decline')">Decline</button>
+          </div>
+          <hr/>
+        `).join('');
+      } catch (error) {
+        ordersDiv.innerHTML = `<p style="color:red;">Failed to load orders: ${error.message}</p>`;
       }
     }
 
-    function logout() {
-      fetch('/admin/logout').then(() => {
-        window.location.href = '/';
-      });
+    async function handleOrder(orderId, action) {
+      if (!confirm(`Are you sure you want to "${action.replace('-', ' ')}" order #${orderId}?`)) return;
+
+      try {
+        const res = await fetch('/order-action', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ order_id: orderId, action }),
+        });
+
+        if (!res.ok) throw new Error('Action failed');
+
+        alert('Action performed successfully.');
+        fetchOrders();
+      } catch (error) {
+        alert('Failed to perform action: ' + error.message);
+      }
     }
 
+    // Initial load
     fetchOrders();
+
+    // Optional: refresh orders every 30 seconds
+    setInterval(fetchOrders, 30000);
   </script>
 </body>
 </html>
-
