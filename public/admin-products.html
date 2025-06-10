@@ -72,28 +72,28 @@
 
 <h2>Add New Product</h2>
 <form id="add-form">
-  <input type="text" id="name" placeholder="Product Name">
+  <input type="text" id="name" placeholder="Product Name" required>
   <textarea id="description" placeholder="Description"></textarea>
-  <input type="text" id="price" placeholder="Price">
-  <input type="text" id="image" placeholder="Image URL">
-  <input type="text" id="email1" placeholder="Email 1">
-  <input type="text" id="password1" placeholder="Password 1">
-  <input type="text" id="email2" placeholder="Email 2">
-  <input type="text" id="password2" placeholder="Password 2">
+  <input type="text" id="price" placeholder="Price" required>
+  <input type="text" id="image_url" placeholder="Image URL">
+  <input type="text" id="email1" placeholder="Email 1" required>
+  <input type="text" id="password1" placeholder="Password 1" required>
+  <input type="text" id="email2" placeholder="Email 2" required>
+  <input type="text" id="password2" placeholder="Password 2" required>
   <button class="submit" type="submit">Add Product</button>
 </form>
 
 <h2>Edit Product</h2>
 <form id="edit-form" style="display: none;">
   <input type="hidden" id="edit-id">
-  <input type="text" id="edit-name" placeholder="Product Name">
+  <input type="text" id="edit-name" placeholder="Product Name" required>
   <textarea id="edit-description" placeholder="Description"></textarea>
-  <input type="text" id="edit-price" placeholder="Price">
-  <input type="text" id="edit-image" placeholder="Image URL">
-  <input type="text" id="edit-email1" placeholder="Email 1">
-  <input type="text" id="edit-password1" placeholder="Password 1">
-  <input type="text" id="edit-email2" placeholder="Email 2">
-  <input type="text" id="edit-password2" placeholder="Password 2">
+  <input type="text" id="edit-price" placeholder="Price" required>
+  <input type="text" id="edit-image_url" placeholder="Image URL">
+  <input type="text" id="edit-email1" placeholder="Email 1" required>
+  <input type="text" id="edit-password1" placeholder="Password 1" required>
+  <input type="text" id="edit-email2" placeholder="Email 2" required>
+  <input type="text" id="edit-password2" placeholder="Password 2" required>
   <button class="submit" type="submit">Update Product</button>
 </form>
 
@@ -116,14 +116,15 @@
             <strong>${product.name || 'No Name'}</strong><br>
             ${product.price ? `Price: $${product.price}<br>` : ''}
             ${product.description ? `Description: ${product.description}<br>` : ''}
-            ${product.image ? `<img class="vehicle" src="${product.image}" alt="Vehicle Image">` : ''}
+            ${product.image_url ? `<img class="vehicle" src="${product.image_url}" alt="Vehicle Image">` : ''}
             <br>
             <button class="edit" onclick='editProduct(${JSON.stringify(product)})'>Edit</button>
             <button class="delete" onclick='deleteProduct(${product.id})'>Delete</button>
           `;
           productList.appendChild(div);
         });
-      });
+      })
+      .catch(() => alert('Failed to load products.'));
   }
 
   function editProduct(product) {
@@ -133,7 +134,7 @@
     document.getElementById('edit-name').value = product.name || '';
     document.getElementById('edit-description').value = product.description || '';
     document.getElementById('edit-price').value = product.price || '';
-    document.getElementById('edit-image').value = product.image || '';
+    document.getElementById('edit-image_url').value = product.image_url || '';
     document.getElementById('edit-email1').value = product.email1 || '';
     document.getElementById('edit-password1').value = product.password1 || '';
     document.getElementById('edit-email2').value = product.email2 || '';
@@ -143,47 +144,50 @@
   addForm.addEventListener('submit', e => {
     e.preventDefault();
     const body = {
-      name: document.getElementById('name').value,
-      description: document.getElementById('description').value,
-      price: document.getElementById('price').value,
-      image: document.getElementById('image').value,
-      email1: document.getElementById('email1').value,
-      password1: document.getElementById('password1').value,
-      email2: document.getElementById('email2').value,
-      password2: document.getElementById('password2').value
+      name: document.getElementById('name').value.trim(),
+      description: document.getElementById('description').value.trim(),
+      price: document.getElementById('price').value.trim(),
+      image_url: document.getElementById('image_url').value.trim(),
+      email1: document.getElementById('email1').value.trim(),
+      password1: document.getElementById('password1').value.trim(),
+      email2: document.getElementById('email2').value.trim(),
+      password2: document.getElementById('password2').value.trim()
     };
     fetch('/admin/add', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body)
-    }).then(res => {
+    })
+    .then(res => {
       if (res.ok) {
         addForm.reset();
         loadProducts();
       } else {
         alert('Failed to add product');
       }
-    });
+    })
+    .catch(() => alert('Network error adding product'));
   });
 
   editForm.addEventListener('submit', e => {
     e.preventDefault();
     const body = {
       id: document.getElementById('edit-id').value,
-      name: document.getElementById('edit-name').value,
-      description: document.getElementById('edit-description').value,
-      price: document.getElementById('edit-price').value,
-      image: document.getElementById('edit-image').value,
-      email1: document.getElementById('edit-email1').value,
-      password1: document.getElementById('edit-password1').value,
-      email2: document.getElementById('edit-email2').value,
-      password2: document.getElementById('edit-password2').value
+      name: document.getElementById('edit-name').value.trim(),
+      description: document.getElementById('edit-description').value.trim(),
+      price: document.getElementById('edit-price').value.trim(),
+      image_url: document.getElementById('edit-image_url').value.trim(),
+      email1: document.getElementById('edit-email1').value.trim(),
+      password1: document.getElementById('edit-password1').value.trim(),
+      email2: document.getElementById('edit-email2').value.trim(),
+      password2: document.getElementById('edit-password2').value.trim()
     };
     fetch('/admin/update', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(body)
-    }).then(res => {
+    })
+    .then(res => {
       if (res.ok) {
         editForm.reset();
         editForm.style.display = 'none';
@@ -191,7 +195,8 @@
       } else {
         alert('Failed to update product');
       }
-    });
+    })
+    .catch(() => alert('Network error updating product'));
   });
 
   function deleteProduct(id) {
@@ -200,13 +205,15 @@
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ id })
-    }).then(res => {
+    })
+    .then(res => {
       if (res.ok) {
         loadProducts();
       } else {
         alert('Failed to delete product');
       }
-    });
+    })
+    .catch(() => alert('Network error deleting product'));
   }
 
   loadProducts();
@@ -214,4 +221,3 @@
 
 </body>
 </html>
-
