@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Upload Payment Screenshot - Salesman Empire</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Upload Your Payment Screenshot</h1>
+  </header>
+
+  <main>
+    <form id="uploadForm" enctype="multipart/form-data">
+      <label for="screenshot">Select payment screenshot (max 5MB):</label><br />
+      <input type="file" id="screenshot" name="screenshot" accept="image/*" required /><br /><br />
+      <button type="submit">Upload & Verify Payment</button>
+    </form>
+
+    <section id="result" style="margin-top: 20px;"></section>
+  </main>
+
+  <script>
+    const form = document.getElementById('uploadForm');
+    const resultDiv = document.getElementById('result');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const fileInput = document.getElementById('screenshot');
+      if (fileInput.files.length === 0) {
+        resultDiv.textContent = 'Please select a file.';
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('screenshot', fileInput.files[0]);
+
+      resultDiv.textContent = 'Uploading and verifying... Please wait.';
+
+      try {
+        const response = await fetch('/api/upload-screenshot', {
+          method: 'POST',
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          resultDiv.innerHTML = `
+            <p style="color: green;">✅ Payment verified!</p>
+            <p><strong>Buyer ID found:</strong> ${data.buyerId}</p>
+            <pre>${data.rawText}</pre>
+          `;
+        } else {
+          resultDiv.innerHTML = `
+            <p style="color: red;">❌ Payment verification failed.</p>
+            <p>Please ensure your screenshot clearly shows your Buyer ID in the CashApp note.</p>
+            <pre>${data.rawText}</pre>
+          `;
+        }
+      } catch (error) {
+        console.error(error);
+        resultDiv.textContent = 'An error occurred during upload or verification.';
+      }
+    });
+  </script>
+</body>
+</html>

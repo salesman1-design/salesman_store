@@ -1,0 +1,187 @@
+/* Admin & Add Product Page Common Styles */
+.container {
+  max-width: 960px;
+  margin: 30px auto;
+  background: #fff;
+  padding: 25px 30px;
+  border-radius: 12px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.1);
+}
+
+h1, h2 {
+  color: #264653;
+  margin-bottom: 20px;
+  font-weight: 700;
+}
+
+form label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: #264653;
+}
+
+form input[type="text"],
+form input[type="email"],
+form input[type="password"],
+form input[type="number"],
+form textarea {
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 18px;
+  border: 1.5px solid #ccc;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+form textarea {
+  min-height: 80px;
+}
+
+form button {
+  background: #2a9d8f;
+  color: white;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+form button:hover {
+  background: #21867a;
+}
+
+/* Table Styles for Admin Orders and Products */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px;
+}
+
+table th, table td {
+  border: 1px solid #ddd;
+  padding: 12px 15px;
+  text-align: left;
+  font-size: 0.95rem;
+}
+
+table th {
+  background: #2a9d8f;
+  color: white;
+  font-weight: 700;
+}
+
+table tr:nth-child(even) {
+  background: #f9f9f9;
+}
+
+.action-btn {
+  background: #e76f51;
+  border: none;
+  color: white;
+  padding: 7px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.3s ease;
+}
+
+.action-btn:hover {
+  background: #d45e3f;
+}
+
+/* Small text for product IDs and notes */
+.small-text {
+  font-size: 0.8rem;
+  color: #555;
+  margin-top: 4px;
+}
+
+/* Responsive tweaks */
+@media (max-width: 600px) {
+  #products-container {
+    grid-template-columns: 1fr;
+  }
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  #search {
+    width: 100%;
+  }
+}
+
+/* style.css additions for upload.html */
+
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f4f4;
+  color: #333;
+  margin: 0;
+  padding: 20px;
+}
+
+header h1 {
+  text-align: center;
+  color: #222;
+  margin-bottom: 30px;
+}
+
+main {
+  max-width: 480px;
+  margin: 0 auto;
+  background: #fff;
+  padding: 25px 30px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+label {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 8px;
+  color: #444;
+}
+
+input[type="file"] {
+  width: 100%;
+  padding: 8px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+button {
+  display: block;
+  width: 100%;
+  padding: 12px 0;
+  margin-top: 20px;
+  background-color: #007bff;
+  border: none;
+  color: white;
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+#result {
+  font-family: monospace;
+  white-space: pre-wrap;
+  background: #eee;
+  padding: 12px 15px;
+  border-radius: 6px;
+  margin-top: 15px;
+  max-height: 300px;
+  overflow-y: auto;
+}

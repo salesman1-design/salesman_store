@@ -1,78 +1,57 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin Access</title>
-  <style>
-    body {
-      background-color: #1e1e1e;
-      color: #fff;
-      font-family: Arial, sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-    }
-
-    .admin-panel {
-      background: #2a2a2a;
-      padding: 30px;
-      border-radius: 10px;
-      width: 90%;
-      max-width: 400px;
-      text-align: center;
-    }
-
-    input {
-      width: 100%;
-      padding: 12px;
-      margin-top: 10px;
-      margin-bottom: 20px;
-      border: none;
-      border-radius: 5px;
-      font-size: 16px;
-    }
-
-    button {
-      background-color: #00c853;
-      border: none;
-      color: white;
-      padding: 12px;
-      width: 100%;
-      font-size: 16px;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background-color: #00b34f;
-    }
-  </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Panel - salesman_empire&1need_for_speed</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="admin-panel">
-    <h2>Enter Admin Backup Code</h2>
-    <input type="password" id="backupCode" placeholder="Enter backup code">
-    <button onclick="submitBackup()">Unlock Admin Panel</button>
-  </div>
+  <header>
+    <h1>Admin Panel</h1>
+    <button id="logout-btn">Logout</button>
+  </header>
 
-  <script>
-    function submitBackup() {
-      const code = document.getElementById('backupCode').value;
-      fetch('/admin-backup-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code })
-      }).then(res => res.json()).then(data => {
-        if (data.success) {
-          window.location.href = '/admin-orders.html';
-        } else {
-          alert(data.message);
-        }
-      });
-    }
-  </script>
+  <section id="orders-section">
+    <h2>Orders</h2>
+    <input type="text" id="order-search" placeholder="Search orders by buyer email or product..." />
+    <table id="orders-table" border="1" cellpadding="10" cellspacing="0" style="width:100%; margin-bottom: 20px;">
+      <thead>
+        <tr>
+          <th>Order ID</th>
+          <th>Buyer Email</th>
+          <th>Product</th>
+          <th>Quantity</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Orders will be loaded here dynamically -->
+      </tbody>
+    </table>
+  </section>
+
+  <section id="products-section">
+    <h2>Products</h2>
+    <button id="add-product-btn">Add New Product</button>
+    <table id="products-table" border="1" cellpadding="10" cellspacing="0" style="width:100%;">
+      <thead>
+        <tr>
+          <th>Product ID</th>
+          <th>Name</th>
+          <th>Price</th>
+          <th>Emails</th>
+          <th>Passwords</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Products will be loaded here dynamically -->
+      </tbody>
+    </table>
+  </section>
+
+  <script src="main.js"></script>
 </body>
 </html>

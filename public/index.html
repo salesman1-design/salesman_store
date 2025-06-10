@@ -2,135 +2,44 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Car Sales Platform</title>
-  <link rel="stylesheet" href="styles.css"/>
-  <style>
-    #productList {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-      justify-content: center;
-    }
-
-    .product-card {
-      background: #1e1e1e;
-      color: #fff;
-      border: 1px solid #444;
-      border-radius: 8px;
-      width: 300px;
-      padding: 15px;
-      box-sizing: border-box;
-      text-align: center;
-      transition: transform 0.2s ease;
-    }
-
-    .product-card:hover {
-      transform: scale(1.02);
-    }
-
-    .product-card img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 5px;
-    }
-
-    @media (max-width: 600px) {
-      .product-card {
-        width: 90%;
-      }
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>salesman_empire&1need_for_speed Store</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
-    <img src="logo.png" alt="Logo" id="logo" />
-    <h1>Available Products</h1>
-    <input type="text" id="searchBar" placeholder="Search products..." />
+    <h1 id="logo">salesman_empire&1need_for_speed</h1>
+    <input
+      type="search"
+      id="search"
+      placeholder="Search products..."
+      aria-label="Search products"
+    />
   </header>
 
-  <main id="productList"></main>
+  <main>
+    <div id="products-container" class="products-grid">
+      <!-- Products injected here by main.js -->
+    </div>
+  </main>
 
-  <section id="orderFormSection">
-    <h2>Place Order</h2>
-    <form id="orderForm">
-      <label for="product_id">Product ID:</label>
-      <input type="number" id="product_id" name="product_id" required />
-      <label for="customer_email">Your Email:</label>
-      <input type="email" id="customer_email" name="customer_email" required />
-      <button type="submit">Order Now</button>
-      <p id="orderMessage"></p>
-    </form>
-  </section>
+  <!-- Buy popup -->
+  <div id="buy-popup" class="popup hidden" role="dialog" aria-modal="true" aria-labelledby="popup-title">
+    <div class="popup-content">
+      <h2 id="popup-title">Buy <span id="popup-product-name"></span></h2>
+      <label for="buyer-email">Your Email:</label>
+      <input type="email" id="buyer-email" placeholder="you@example.com" required />
+      <div class="popup-buttons">
+        <button id="confirm-buy">Buy</button>
+        <button id="cancel-buy">Cancel</button>
+      </div>
+    </div>
+  </div>
 
-  <script>
-    const productList = document.getElementById('productList');
-    const orderForm = document.getElementById('orderForm');
-    const orderMessage = document.getElementById('orderMessage');
-    const searchBar = document.getElementById('searchBar');
-    let allProducts = [];
+  <!-- Notification -->
+  <div id="notification" class="notification hidden" role="alert"></div>
 
-    fetch('/products')
-      .then(res => res.json())
-      .then(products => {
-        allProducts = products;
-        renderProducts(allProducts);
-      });
-
-    function renderProducts(products) {
-      productList.innerHTML = products.map(product => `
-        <div class="product-card">
-          <h3>${product.name}</h3>
-          <img src="${product.image_url}" alt="Product image" />
-          <p>${product.description}</p>
-          <p><strong>Price:</strong> $${product.price}</p>
-          <p><strong>Product ID:</strong> ${product.id}</p>
-          <button class="buy-button" data-product-id="${product.id}" data-product-name="${product.name}">Buy</button>
-        </div>
-      `).join('');
-    }
-
-    searchBar.addEventListener('input', () => {
-      const term = searchBar.value.toLowerCase();
-      const filtered = allProducts.filter(p =>
-        p.name.toLowerCase().includes(term) ||
-        p.description.toLowerCase().includes(term)
-      );
-      renderProducts(filtered);
-    });
-
-    productList.addEventListener('click', (event) => {
-      if (event.target.classList.contains('buy-button')) {
-        const button = event.target;
-        const productId = button.getAttribute('data-product-id');
-        document.getElementById('product_id').value = productId;
-        document.getElementById('orderFormSection').scrollIntoView({ behavior: 'smooth' });
-      }
-    });
-
-    orderForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const formData = new FormData(orderForm);
-      const payload = Object.fromEntries(formData.entries());
-
-      try {
-        const res = await fetch('/order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (!res.ok) throw new Error(await res.text());
-        orderMessage.textContent = 'Order placed successfully! Check your email.';
-        orderForm.reset();
-      } catch (err) {
-        orderMessage.textContent = `Error: ${err.message}`;
-      }
-    });
-
-    document.getElementById('logo').ondblclick = () => {
-      window.location.href = '/admin/login';
-    };
-  </script>
+  <script src="main.js"></script>
 </body>
 </html>
+
