@@ -7,47 +7,56 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
-    <img src="/logo.png" alt="Logo" id="logo" class="logo-img" />
-    <h1>salesman_empire&1need_for_speed</h1>
+  <header class="site-header">
+    <div class="logo-search-wrapper">
+      <img src="/logo.png" alt="Logo" id="logo" class="logo-img" tabindex="0" />
+      <h1 class="site-title">salesman_empire&1need_for_speed</h1>
+    </div>
     <input
       type="search"
       id="search"
       placeholder="Search products..."
       aria-label="Search products"
+      autocomplete="off"
+      spellcheck="false"
     />
   </header>
 
+  <!-- Ribbon banner -->
+  <div class="ribbon-banner" role="banner" aria-live="polite">
+    🚗 Welcome to salesman_empire&1need_for_speed store! Browse and buy your favorite items! 🎮
+  </div>
+
   <main>
-    <div id="products-container" class="products-grid">
-      <!-- Products injected here by main.js -->
-    </div>
+    <section id="products-container" class="products-grid" aria-live="polite" aria-label="Product listings">
+      <!-- Products will be injected here by main.js -->
+    </section>
 
     <div class="text-center">
-      <button id="upload-btn" onclick="window.location.href='/upload.html'">
+      <button id="upload-btn" type="button" onclick="window.location.href='/upload.html'">
         Upload CashApp Screenshot
       </button>
     </div>
   </main>
 
-  <!-- Buy popup -->
-  <div id="buy-popup" class="popup hidden" role="dialog" aria-modal="true" aria-labelledby="popup-title">
+  <!-- Buy popup modal -->
+  <div id="buy-popup" class="popup hidden" role="dialog" aria-modal="true" aria-labelledby="popup-title" aria-describedby="popup-desc">
     <div class="popup-content">
+      <button class="popup-close" aria-label="Close popup">&times;</button>
       <h2 id="popup-title">Buy <span id="popup-product-name"></span></h2>
+      <p id="popup-desc">Please enter your email to proceed with the purchase.</p>
       <label for="buyer-email">Your Email:</label>
-      <input type="email" id="buyer-email" placeholder="you@example.com" required />
+      <input type="email" id="buyer-email" placeholder="you@example.com" required autocomplete="email" />
       <div class="popup-buttons">
-        <button id="confirm-buy">Buy</button>
-        <button id="cancel-buy">Cancel</button>
+        <button id="confirm-buy" type="button">Buy</button>
+        <button id="cancel-buy" type="button">Cancel</button>
       </div>
     </div>
   </div>
 
-  <!-- Notification -->
-  <div id="notification" class="notification hidden" role="alert"></div>
+  <!-- Notification message -->
+  <div id="notification" class="notification hidden" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
-  <script src="main.js"></script>
+  <script src="main.js" defer></script>
 </body>
 </html>
-
-
