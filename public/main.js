@@ -8,21 +8,20 @@ const confirmBuyBtn = document.getElementById('confirm-buy');
 const cancelBuyBtn = document.getElementById('cancel-buy');
 const notification = document.getElementById('notification');
 const logo = document.getElementById('logo');
+const screenshotBtn = document.getElementById('upload-screenshot-btn'); // optional upload button
 
 let products = [];
 let selectedProduct = null;
 let logoClickCount = 0;
 let logoClickTimeout = null;
 
-// Fetch products from server
+// Fetch products
 async function fetchProducts() {
   try {
     const res = await fetch('/api/products');
     if (!res.ok) throw new Error('Server error while fetching products');
     const data = await res.json();
-
     if (!Array.isArray(data)) throw new Error('Invalid products data');
-
     products = data;
     displayProducts(products);
   } catch (err) {
@@ -31,10 +30,10 @@ async function fetchProducts() {
   }
 }
 
-// Display products in the container
+// Display product cards
 function displayProducts(productsToShow) {
   productsContainer.innerHTML = '';
-  if (!Array.isArray(productsToShow) || productsToShow.length === 0) {
+  if (!productsToShow || productsToShow.length === 0) {
     productsContainer.innerHTML = '<p>No products found.</p>';
     return;
   }
@@ -53,10 +52,9 @@ function displayProducts(productsToShow) {
   });
 }
 
-// Filter products on search
+// Search filter
 searchInput.addEventListener('input', () => {
   const query = searchInput.value.toLowerCase().trim();
-  if (!Array.isArray(products)) return;
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(query) ||
     p.description.toLowerCase().includes(query)
@@ -64,7 +62,7 @@ searchInput.addEventListener('input', () => {
   displayProducts(filtered);
 });
 
-// Handle Buy button click (event delegation)
+// Handle buy button (delegated)
 productsContainer.addEventListener('click', e => {
   if (e.target.classList.contains('buy-btn')) {
     const id = e.target.getAttribute('data-id');
@@ -77,13 +75,13 @@ productsContainer.addEventListener('click', e => {
   }
 });
 
-// Cancel buy popup
+// Cancel buy
 cancelBuyBtn.addEventListener('click', () => {
   buyPopup.classList.add('hidden');
   selectedProduct = null;
 });
 
-// Confirm buy popup - submit order
+// Confirm buy
 confirmBuyBtn.addEventListener('click', async () => {
   const email = buyerEmailInput.value.trim();
   if (!email || !validateEmail(email)) {
@@ -104,6 +102,7 @@ confirmBuyBtn.addEventListener('click', async () => {
         buyerEmail: email
       })
     });
+
     if (res.ok) {
       showNotification('Order placed! Check your email for next steps.');
       buyPopup.classList.add('hidden');
@@ -121,12 +120,12 @@ confirmBuyBtn.addEventListener('click', async () => {
   }
 });
 
-// Simple email validation
+// Validate email format
 function validateEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// Show temporary notification
+// Notification message
 function showNotification(message) {
   notification.textContent = message;
   notification.classList.remove('hidden');
@@ -135,7 +134,7 @@ function showNotification(message) {
   }, 4000);
 }
 
-// Admin unlock: triple-click logo triggers prompt for password
+// Admin unlock: triple-click logo
 logo.addEventListener('click', () => {
   logoClickCount++;
   if (logoClickTimeout) clearTimeout(logoClickTimeout);
@@ -162,5 +161,12 @@ logo.addEventListener('click', () => {
   }
 });
 
-// Initial load
+// Go to upload screenshot page
+if (screenshotBtn) {
+  screenshotBtn.addEventListener('click', () => {
+    window.location.href = '/upload.html';
+  });
+}
+
+// Run on load
 fetchProducts();
