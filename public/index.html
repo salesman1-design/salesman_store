@@ -22,21 +22,20 @@
     />
   </header>
 
-  <!-- Ribbon banner -->
+  <!-- Ribbon banner with welcome text and upload button -->
   <div class="ribbon-banner" role="banner" aria-live="polite">
-    🚗 Welcome to salesman_empire&1need_for_speed store! Browse and buy your favorite items! 🎮
+    <span class="ribbon-text">
+      🚗 Welcome to salesman_empire&1need_for_speed store! Browse and buy your favorite items! 🎮
+    </span>
+    <button id="upload-btn" type="button" onclick="window.location.href='/upload.html'">
+      Upload CashApp Screenshot
+    </button>
   </div>
 
   <main>
     <section id="products-container" class="products-grid" aria-live="polite" aria-label="Product listings">
       <!-- Products will be injected here by main.js -->
     </section>
-
-    <div class="text-center">
-      <button id="upload-btn" type="button" onclick="window.location.href='/upload.html'">
-        Upload CashApp Screenshot
-      </button>
-    </div>
   </main>
 
   <!-- Buy popup modal -->
