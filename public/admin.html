@@ -12,45 +12,79 @@
     <button id="logout-btn">Logout</button>
   </header>
 
-  <section id="orders-section">
-    <h2>Orders</h2>
-    <input type="text" id="order-search" placeholder="Search orders by buyer email or product..." />
-    <table id="orders-table" border="1" cellpadding="10" cellspacing="0" style="width:100%; margin-bottom: 20px;">
-      <thead>
-        <tr>
-          <th>Order ID</th>
-          <th>Buyer Email</th>
-          <th>Product</th>
-          <th>Quantity</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- Orders will be loaded here dynamically -->
-      </tbody>
-    </table>
-  </section>
+  <main>
+    <!-- Orders Management -->
+    <section id="orders-section">
+      <h2>Orders</h2>
+      <input type="text" id="order-search" placeholder="Search orders by buyer email or product..." />
+      <table id="orders-table" border="1" cellpadding="10" cellspacing="0" style="width:100%; margin-bottom: 20px;">
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Buyer Email</th>
+            <th>Product</th>
+            <th>Status</th>
+            <th>Actions</th>
+            <th>Proof</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Orders will be loaded here dynamically -->
+        </tbody>
+      </table>
+    </section>
 
-  <section id="products-section">
-    <h2>Products</h2>
-    <button id="add-product-btn">Add New Product</button>
-    <table id="products-table" border="1" cellpadding="10" cellspacing="0" style="width:100%;">
-      <thead>
-        <tr>
-          <th>Product ID</th>
-          <th>Name</th>
-          <th>Price</th>
-          <th>Emails</th>
-          <th>Passwords</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- Products will be loaded here dynamically -->
-      </tbody>
-    </table>
-  </section>
+    <!-- Product Management -->
+    <section id="products-section">
+      <h2>Products</h2>
+      <button id="add-product-btn">Add New Product</button>
+      <table id="products-table" border="1" cellpadding="10" cellspacing="0" style="width:100%;">
+        <thead>
+          <tr>
+            <th>Product ID</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Credentials</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Products will be loaded here dynamically -->
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <!-- Product Modal -->
+  <div id="product-modal" class="modal hidden">
+    <div class="modal-content">
+      <span class="close-btn" id="close-product-modal">&times;</span>
+      <h3 id="modal-title">Add / Edit Product</h3>
+      <form id="product-form">
+        <input type="hidden" id="product-id" />
+        <label>
+          Name:
+          <input type="text" id="product-name" required />
+        </label><br>
+        <label>
+          Price:
+          <input type="number" id="product-price" required />
+        </label><br>
+        <label>
+          Description:
+          <textarea id="product-description" required></textarea>
+        </label><br>
+        <label>
+          Image URL:
+          <input type="text" id="product-image-url" required />
+        </label><br>
+        <button type="submit" id="save-product-btn">Save</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Notification -->
+  <div id="admin-notification" class="hidden"></div>
 
   <script src="main.js"></script>
 </body>

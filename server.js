@@ -7,11 +7,11 @@ const multer = require('multer');
 const path = require('path');
 const tesseract = require('tesseract.js');
 const db = require('./db');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static('public'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -21,13 +21,11 @@ app.use(session({
   saveUninitialized: false,
 }));
 
-// Configure multer for screenshot uploads
 const upload = multer({
   dest: 'uploads/',
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
-// Nodemailer setup
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
@@ -38,19 +36,15 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// Middleware to protect admin routes
 function isAdmin(req, res, next) {
   if (req.session && req.session.isAdmin) return next();
   return res.status(401).send('Unauthorized');
 }
 
-// ============ ROUTES ==============
-
-// GET /api/products - list all products
+// Public: List products
 app.get('/api/products', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM products');
-    // rows should be an array of product objects
     res.json(rows);
   } catch (err) {
     console.error('Error fetching products:', err);
@@ -58,72 +52,92 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// POST /api/order - place an order
-app.post('/api/order', async (req, res) => {
+// Public: Place an order
+app.post('/api/orders', async (req, res) => {
   const { productId, buyerEmail } = req.body;
   if (!productId || !buyerEmail) return res.status(400).json({ error: 'Missing productId or buyerEmail' });
 
   try {
-    // Generate a random buyer ID (8 chars alphanumeric)
     const buyerId = Math.random().toString(36).slice(2, 10).toUpperCase();
+    const timestamp = new Date().toLocaleString();
 
-    // Insert order into DB with status 'pending'
     await db.query(
       'INSERT INTO orders (product_id, buyer_email, buyer_id, status, created_at) VALUES (?, ?, ?, ?, NOW())',
       [productId, buyerEmail, buyerId, 'pending']
     );
 
-    // Get product details
     const [[product]] = await db.query('SELECT * FROM products WHERE id = ?', [productId]);
 
-    // Send email to owner/admin with order info
-    const mailOptions = {
+    const adminMail = {
       from: process.env.SMTP_USER,
       to: process.env.OWNER_EMAIL,
-      subject: `New order from ${buyerEmail}`,
-      text: `New order details:\nProduct: ${product.name}\nPrice: $${product.price}\nBuyer Email: ${buyerEmail}\nBuyer ID: ${buyerId}\n\nPlease wait for payment verification instructions.`,
+      subject: `New Order from ${buyerEmail}`,
+      html: `
+        <h2>New Order Received</h2>
+        <p><strong>Product:</strong> ${product.name}</p>
+        <p><strong>Price:</strong> $${product.price}</p>
+        <p><strong>Buyer Email:</strong> ${buyerEmail}</p>
+        <p><strong>Buyer ID:</strong> ${buyerId}</p>
+        <p><strong>Time:</strong> ${timestamp}</p>
+      `
     };
-    transporter.sendMail(mailOptions, (err, info) => {
-      if (err) console.error('Error sending order email:', err);
-      else console.log('Order email sent:', info.response);
-    });
+    await transporter.sendMail(adminMail);
 
-    // Respond to buyer with next steps
-    res.json({
-      message: `Thank you for your order! Your buyer ID is ${buyerId}. Please send payment with this ID in the CashApp note.`,
-      buyerId,
-    });
+    const buyerMail = {
+      from: process.env.SMTP_USER,
+      to: buyerEmail,
+      subject: `Your Order for ${product.name}`,
+      html: `
+        <h2>Thank you for your order!</h2>
+        <p><strong>Product:</strong> ${product.name}</p>
+        <p><strong>Price:</strong> $${product.price}</p>
+        <p><strong>Buyer ID:</strong> ${buyerId}</p>
+        <p><strong>Time:</strong> ${timestamp}</p>
+        <h3>Next Steps:</h3>
+        <ol>
+          <li>Open CashApp and send the payment to <strong>$fastfire9</strong></li>
+          <li>Include your <strong>Buyer ID: ${buyerId}</strong> in the note</li>
+          <li>Upload your screenshot on the site</li>
+        </ol>
+      `
+    };
+    await transporter.sendMail(buyerMail);
+
+    res.json({ message: 'Order placed. Check your email.', buyerId });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Order processing error' });
   }
 });
 
-// POST /api/admin/login - admin login
+// Admin login/logout
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
-  if (username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
+  if (
+    String(username) === String(process.env.ADMIN_USERNAME) &&
+    String(password) === String(process.env.ADMIN_PASSWORD)
+  ) {
     req.session.isAdmin = true;
     return res.json({ success: true });
   }
+
   res.status(401).json({ success: false, message: 'Invalid credentials' });
 });
 
-// POST /api/admin/logout - admin logout
 app.post('/api/admin/logout', isAdmin, (req, res) => {
   req.session.destroy();
   res.json({ success: true });
 });
 
-// GET /api/admin/orders - admin view all orders
+// Admin: View orders
 app.get('/api/admin/orders', isAdmin, async (req, res) => {
   try {
-    const [orders] = await db.query(
-      `SELECT o.id, o.buyer_email, o.buyer_id, o.status, o.created_at, p.name as product_name
-       FROM orders o
-       JOIN products p ON o.product_id = p.id
-       ORDER BY o.created_at DESC`
-    );
+    const [orders] = await db.query(`
+      SELECT o.id, o.buyer_email, o.buyer_id, o.status, o.created_at, p.name as product_name
+      FROM orders o
+      JOIN products p ON o.product_id = p.id
+      ORDER BY o.created_at DESC
+    `);
     res.json(orders);
   } catch (err) {
     console.error(err);
@@ -131,124 +145,129 @@ app.get('/api/admin/orders', isAdmin, async (req, res) => {
   }
 });
 
-// POST /api/admin/orders/:orderId/accept - accept order and send payment instructions
+// ✅ Admin: Accept order
 app.post('/api/admin/orders/:orderId/accept', isAdmin, async (req, res) => {
   const orderId = req.params.orderId;
 
   try {
-    // Get order info
     const [[order]] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
-    if (!order) return res.status(404).json({ error: 'Order not found' });
+    if (!order) {
+      console.error('Order not found:', orderId);
+      return res.status(404).json({ error: 'Order not found' });
+    }
 
-    // Update status to 'accepted'
     await db.query('UPDATE orders SET status = ? WHERE id = ?', ['accepted', orderId]);
 
-    // Send payment instructions to buyer
     const mailOptions = {
       from: process.env.SMTP_USER,
       to: order.buyer_email,
       subject: 'Payment Instructions',
-      text: `Hello,\n\nPlease send your payment to CashApp with the following note:\nBuyer ID: ${order.buyer_id}\n\nAfter payment, upload your screenshot for verification.`,
+      text: `Hello,\n\nPlease send your payment to CashApp with this note:\nBuyer ID: ${order.buyer_id}\n\nThen upload your screenshot.`,
     };
-    transporter.sendMail(mailOptions, (err, info) => {
-      if (err) console.error('Error sending payment instructions:', err);
-      else console.log('Payment instructions email sent:', info.response);
-    });
 
-    res.json({ success: true });
+    transporter.sendMail(mailOptions, (err, info) => {
+      if (err) {
+        console.error('Error sending payment email:', err);
+        return res.status(500).json({ error: 'Failed to send email' });
+      }
+      console.log('Payment instructions sent:', info.response);
+      res.json({ success: true });
+    });
   } catch (err) {
-    console.error(err);
+    console.error('Error accepting order:', err);
     res.status(500).json({ error: 'Failed to accept order' });
   }
 });
 
-// POST /api/admin/orders/:orderId/complete - accept sale, assign credentials and notify buyer
-app.post('/api/admin/orders/:orderId/complete', isAdmin, async (req, res) => {
+// ✅ Admin: Decline order
+app.post('/api/admin/orders/:orderId/decline', isAdmin, async (req, res) => {
   const orderId = req.params.orderId;
-
   try {
-    // Get order and product info
     const [[order]] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    // Fetch unassigned credentials for this product
+    await db.query('UPDATE orders SET status = ? WHERE id = ?', ['declined', orderId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error declining order:', err);
+    res.status(500).json({ error: 'Failed to decline order' });
+  }
+});
+
+// Admin: Complete order
+app.post('/api/admin/orders/:orderId/complete', isAdmin, async (req, res) => {
+  const orderId = req.params.orderId;
+  try {
+    const [[order]] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
     const [creds] = await db.query(
       'SELECT * FROM product_credentials WHERE product_id = ? AND assigned = false LIMIT 1',
       [order.product_id]
     );
-
-    if (creds.length === 0) {
-      return res.status(400).json({ error: 'No available credentials for this product' });
-    }
+    if (!creds.length) return res.status(400).json({ error: 'No available credentials' });
 
     const credential = creds[0];
-
-    // Mark credential as assigned
     await db.query('UPDATE product_credentials SET assigned = true WHERE id = ?', [credential.id]);
-
-    // Update order status
     await db.query('UPDATE orders SET status = ? WHERE id = ?', ['completed', orderId]);
 
-    // Send credentials to buyer email
     const mailOptions = {
       from: process.env.SMTP_USER,
       to: order.buyer_email,
-      subject: 'Your Purchase Credentials',
-      text: `Thank you for your purchase!\n\nHere are your credentials:\nEmail: ${credential.email}\nPassword: ${credential.password}\n\nEnjoy!`,
+      subject: 'Your Credentials',
+      text: `Thank you! Your credentials:\nEmail: ${credential.email}\nPassword: ${credential.password}`,
     };
-    transporter.sendMail(mailOptions, (err, info) => {
-      if (err) console.error('Error sending credentials email:', err);
-      else console.log('Credentials email sent:', info.response);
+    transporter.sendMail(mailOptions, (err) => {
+      if (err) console.error('Credential email error:', err);
     });
 
-    res.json({ success: true, assignedCredential: credential });
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to complete order' });
   }
 });
 
-// POST /api/admin/products - add or update product
+// Admin: Add or update product
 app.post('/api/admin/products', isAdmin, async (req, res) => {
-  const { id, name, description, price, image, emailPasswords } = req.body;
-
-  if (!name || !description || !price || !image) {
-    return res.status(400).json({ error: 'Missing required product fields' });
-  }
+  let { id, name, description, price, image, emailPasswords } = req.body;
 
   try {
     if (id) {
-      // Update product
+      const [[current]] = await db.query('SELECT * FROM products WHERE id = ?', [id]);
+      if (!current) return res.status(404).json({ error: 'Product not found' });
+
+      name = name || current.name;
+      description = description || current.description;
+      price = price || current.price;
+      image = image || current.image;
+
       await db.query(
         'UPDATE products SET name = ?, description = ?, price = ?, image = ? WHERE id = ?',
         [name, description, price, image, id]
       );
-      // Update credentials for product
+
       if (Array.isArray(emailPasswords)) {
         for (let cred of emailPasswords) {
-          if (cred.id) {
-            await db.query(
-              'UPDATE product_credentials SET email = ?, password = ? WHERE id = ?',
-              [cred.email, cred.password, cred.id]
-            );
-          } else {
-            await db.query(
-              'INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)',
-              [id, cred.email, cred.password]
-            );
-          }
+          await db.query(
+            'INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)',
+            [id, cred.email, cred.password]
+          );
         }
       }
-      return res.json({ success: true, message: 'Product updated' });
+
+      return res.json({ success: true });
     } else {
-      // Insert new product
+      if (!name || !description || !price || !image) {
+        return res.status(400).json({ error: 'Missing required fields' });
+      }
+
       const [result] = await db.query(
         'INSERT INTO products (name, description, price, image) VALUES (?, ?, ?, ?)',
         [name, description, price, image]
       );
       const productId = result.insertId;
 
-      // Insert credentials if provided
       if (Array.isArray(emailPasswords)) {
         for (let cred of emailPasswords) {
           await db.query(
@@ -257,31 +276,53 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
           );
         }
       }
-      return res.json({ success: true, message: 'Product added', productId });
+
+      return res.json({ success: true, productId });
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'Failed to add/update product' });
+    res.status(500).json({ error: 'Failed to save product' });
   }
 });
 
-// POST /api/upload-screenshot - buyer uploads screenshot for payment verification
+// Admin: Delete product
+app.post('/api/admin/products/:id/delete', isAdmin, async (req, res) => {
+  const id = req.params.id;
+  try {
+    await db.query('DELETE FROM product_credentials WHERE product_id = ?', [id]);
+    await db.query('DELETE FROM products WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete product' });
+  }
+});
+
+// Admin: Get product by ID
+app.get('/api/admin/product/:id', isAdmin, async (req, res) => {
+  const id = req.params.id;
+  try {
+    const [[product]] = await db.query('SELECT * FROM products WHERE id = ?', [id]);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+
+    const [credentials] = await db.query('SELECT id, email, password FROM product_credentials WHERE product_id = ?', [id]);
+
+    res.json({ ...product, credentials });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch product' });
+  }
+});
+
+// Upload screenshot for OCR
 app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   try {
-    // Run OCR on uploaded image
     const result = await tesseract.recognize(req.file.path, 'eng');
     const text = result.data.text;
-
-    // For demo, simple check if buyer ID or payment info is mentioned
-    // You can customize your verification logic here
-
-    // Clean up uploaded file
-    const fs = require('fs');
     fs.unlink(req.file.path, () => {});
 
-    // Example: check if text contains buyer ID format (e.g. 8 chars alphanumeric)
     const buyerIdMatch = text.match(/[A-Z0-9]{8}/);
     if (buyerIdMatch) {
       return res.json({ success: true, message: 'Payment verified', buyerId: buyerIdMatch[0], rawText: text });
@@ -290,10 +331,15 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
     }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'OCR processing failed' });
+    res.status(500).json({ error: 'OCR failed' });
   }
 });
 
+app.use(express.static('public'));
+
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'API route not found' });
+});
 
 app.listen(PORT, () => {
   console.log(`🚗 Server is running on http://localhost:${PORT}`);

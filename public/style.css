@@ -1,151 +1,161 @@
-/* Modern background with subtle gradient and pattern */
+/* General Reset */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #f0f0f0;
-  margin: 0;
-  padding: 0 15px;
-  min-height: 100vh;
+  background: linear-gradient(135deg, #f4f4f4, #e6ecf0);
+  color: #222;
+  line-height: 1.6;
+  padding-bottom: 60px;
 }
 
-/* Ribbon banner updated with flex and spacing */
-.ribbon-banner {
-  max-width: 1200px;
-  margin: 15px auto;
-  background-color: rgba(42, 157, 143, 0.9); /* Slightly transparent teal */
+header.site-header {
+  background: #264653;
   color: white;
-  font-weight: 600;
-  font-size: 1.1rem;
-  text-align: center;
-  padding: 12px 25px;
-  border-radius: 8px;
-  box-shadow: 0 3px 12px rgba(42, 157, 143, 0.6);
-  
+  padding: 20px 15px;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  gap: 20px;
-}
-
-/* Ribbon text */
-.ribbon-banner span {
-  flex-grow: 1;
-  text-align: left;
-  font-size: 1.2rem;
-  user-select: none;
-}
-
-/* Upload button in ribbon */
-.ribbon-banner button {
-  background-color: #f4a261;
-  color: #264653;
-  border: none;
-  padding: 10px 18px;
-  font-weight: 700;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-  white-space: nowrap;
-  box-shadow: 0 4px 8px rgba(244, 162, 97, 0.5);
-}
-
-.ribbon-banner button:hover {
-  background-color: #e76f51;
-  color: white;
-  box-shadow: 0 6px 14px rgba(231, 111, 81, 0.7);
-}
-
-/* Adjust header text and input for light background */
-header {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 15px 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
   gap: 15px;
-  color: #f0f0f0;
 }
 
-header h1 {
-  font-weight: 700;
-  font-size: 1.8rem;
-  user-select: none;
+.logo-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 15px;
 }
 
-/* Search input with lighter background */
+.logo-img {
+  height: 50px;
+  cursor: pointer;
+}
+
+.site-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  text-align: center;
+}
+
 #search {
-  flex-grow: 1;
-  max-width: 300px;
-  padding: 8px 12px;
+  padding: 10px;
   font-size: 1rem;
-  border: 2px solid rgba(255,255,255,0.7);
-  border-radius: 8px;
-  background: rgba(255,255,255,0.15);
-  color: white;
-  outline-offset: 2px;
-  transition: background-color 0.3s ease, border-color 0.3s ease;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  width: 100%;
+  max-width: 400px;
 }
 
-#search::placeholder {
-  color: #ddd;
-}
-
-#search:focus {
-  background: white;
-  color: #264653;
-  border-color: #2a9d8f;
-}
-
-/* Make product cards background white for contrast */
-.product-card {
-  background: white;
-  color: #264653;
-}
-
-/* Other text color overrides for product details */
-.product-name, .product-description, .product-price {
-  color: #264653;
-}
-
-/* Adjust button colors */
-.buy-button {
-  background-color: #2a9d8f;
-  color: white;
-}
-
-.buy-button:hover {
-  background-color: #1f5e63;
-}
-
-/* Notification box */
-.notification {
+.ribbon-banner {
   background: #2a9d8f;
   color: white;
+  padding: 10px;
+  text-align: center;
+  font-weight: 600;
 }
 
-/* Responsive tweaks remain the same */
-@media (max-width: 600px) {
-  header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  #search {
-    max-width: 100%;
-    width: 100%;
-  }
+/* Move Upload Button into Ribbon */
+.ribbon-banner::after {
+  content: " | ";
+  padding: 0 10px;
+}
+
+.ribbon-banner::after + * {
+  display: inline-block;
+}
+
+#upload-btn {
+  background: #e76f51;
+  color: white;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 5px;
+  font-weight: 600;
+  margin-left: 10px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+#upload-btn:hover {
+  background: #d65b40;
+}
+
+/* Main product grid */
+.products-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  padding: 30px 15px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
   .products-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   }
-  .ribbon-banner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    font-size: 1rem;
-  }
-  .ribbon-banner button {
-    width: 100%;
-  }
+}
+
+.product-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  padding: 20px;
+  transition: transform 0.2s;
+}
+
+.product-card:hover {
+  transform: translateY(-4px);
+}
+
+.product-card img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.product-card h3 {
+  margin: 12px 0 6px;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.product-card p {
+  font-size: 0.95rem;
+  color: #555;
+}
+
+.product-card .price {
+  font-weight: bold;
+  color: #2a9d8f;
+  margin: 10px 0;
+}
+
+.product-card button {
+  background: #264653;
+  color: white;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  width: 100%;
+  cursor: pointer;
+}
+
+.product-card button:hover {
+  background: #1e3c48;
+}
+
+/* Popup and Notification remain unchanged */
+.popup, .notification {
+  z-index: 1000;
+}
+
+.hidden {
+  display: none;
 }
 
