@@ -14,19 +14,19 @@
 
   <form id="product-form">
     <label for="product-id">Product ID (leave empty for new product):</label>
-    <input type="text" id="product-id" name="productId" placeholder="Auto-generated for new products" />
+    <input type="text" id="product-id" name="id" placeholder="Auto-generated for new products" />
 
     <label for="name">Product Name:</label>
-    <input type="text" id="name" name="name" />
+    <input type="text" id="name" name="name" required />
 
     <label for="description">Description:</label>
-    <textarea id="description" name="description" rows="3" ></textarea>
+    <textarea id="description" name="description" rows="3" required></textarea>
 
     <label for="price">Price ($):</label>
-    <input type="number" step="0.01" id="price" name="price" />
+    <input type="number" step="0.01" id="price" name="price" required />
 
     <label for="image_url">Image URL:</label>
-    <input type="url" id="image_url" name="image" />
+    <input type="url" id="image_url" name="image_url" required />
 
     <hr />
 

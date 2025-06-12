@@ -46,27 +46,35 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    function renderProducts(items) {
-      if (!productsContainer) return;
-      productsContainer.innerHTML = '';
-      if (!items.length) {
-        productsContainer.innerHTML = '<p>No products found.</p>';
-        return;
-      }
+	function renderProducts(items) {
+	  if (!productsContainer) return;
+	  productsContainer.innerHTML = '';
 
-      items.forEach(p => {
-        const card = document.createElement('div');
-        card.className = 'product-card';
-        card.innerHTML = `
-          <img src="${p.image_url}" alt="${p.name}">
-          <h3>${p.name}</h3>
-          <p class="description">${p.description}</p>
-          <p class="price">$${parseFloat(p.price).toFixed(2)}</p>
-          <button class="buy-btn" data-id="${p.id}">Buy</button>
-        `;
-        productsContainer.appendChild(card);
-      });
-    }
+	  if (!items.length) {
+		productsContainer.innerHTML = `
+		  <div class="no-results" style="width:100%; text-align:center; padding:1rem;">
+			<p>No products found.</p>
+		  </div>
+		`;
+		
+		return;
+	  }
+
+	  items.forEach(p => {
+		const card = document.createElement('div');
+		card.className = 'product-card';
+		card.innerHTML = `
+		  <img src="${p.image_url}" alt="${p.name}" class="product-img">
+		  <div class="product-info">
+			<h3>${p.name}</h3>
+			<p class="description">${p.description}</p>
+			<p class="price">$${parseFloat(p.price).toFixed(2)}</p>
+			<button class="buy-btn" data-id="${p.id}">Buy</button>
+		  </div>
+		`;
+		productsContainer.appendChild(card);
+	  });
+	}
 
     searchInput?.addEventListener('input', () => {
       const query = searchInput.value.toLowerCase().trim();
@@ -196,30 +204,35 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    function renderOrders(orderList) {
-      if (!ordersTableBody) return;
-      ordersTableBody.innerHTML = '';
-      const pending = orderList.filter(o => o.status === 'pending');
-      if (!pending.length) {
-        ordersTableBody.innerHTML = `<tr><td colspan="6">No pending orders</td></tr>`;
-        return;
-      }
-      pending.forEach(o => {
-        ordersTableBody.innerHTML += `
-          <tr>
-            <td>${o.buyer_id}</td>
-            <td>${o.buyer_email}</td>
-            <td>${o.product_name}</td>
-            <td>${o.status}</td>
-            <td>
-              <button class="accept-btn" data-id="${o.id}">Accept</button>
-              <button class="decline-btn" data-id="${o.id}">Decline</button>
-            </td>
-            <td>${o.proof ? `<a href="${o.proof}" target="_blank">View</a>` : '—'}</td>
-          </tr>`;
-      });
-    }
+	function renderOrders(orderList) {
+	  if (!ordersTableBody) return;
+	  ordersTableBody.innerHTML = '';
+	  if (!orderList.length) {
+		ordersTableBody.innerHTML = `<tr><td colspan="6">No orders available</td></tr>`;
+		return;
+	  }
 
+	  orderList.forEach(o => {
+		const showActions = ['pending', 'flagged'].includes(o.status);
+
+		ordersTableBody.innerHTML += `
+		  <tr>
+			<td>${o.buyer_id}</td>
+			<td>${o.buyer_email}</td>
+			<td>${o.product_name}</td>
+			<td>${o.status}</td>
+			<td>
+			  ${showActions ? `
+				<button class="accept-btn" data-id="${o.buyer_id}">Accept Order</button>
+				<button class="complete-btn" data-id="${o.buyer_id}">Accept Sale</button>
+				<button class="decline-btn" data-id="${o.buyer_id}">Decline</button>
+			  ` : '—'}
+			</td>
+		  </tr>
+		`;
+	  });
+	}
+	
     async function loadProducts() {
       try {
         const res = await fetch('/api/products');
@@ -268,28 +281,34 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.href = '/addproduct.html';
     });
 
-    ordersTableBody?.addEventListener('click', async (e) => {
-      const orderId = e.target.dataset.id;
-      const action = e.target.classList.contains('accept-btn')
-        ? 'accept'
-        : e.target.classList.contains('decline-btn')
-        ? 'decline'
-        : null;
+	ordersTableBody?.addEventListener('click', async (e) => {
+	  const id = e.target.dataset.id;
+	  if (!id) return;
 
-      if (orderId && action) {
-        try {
-          const res = await fetch(`/api/admin/orders/${orderId}/${action}`, { method: 'POST' });
-          if (res.ok) {
-            await loadOrders();
-            showNotification(`Order ${action}ed.`);
-          } else {
-            alert('Failed to update order');
-          }
-        } catch {
-          alert('Network error');
-        }
-      }
-    });
+	  if (e.target.classList.contains('accept-btn')) {
+		await handleOrderAction(id, 'accept');
+	  }
+	  if (e.target.classList.contains('complete-btn')) {
+		await handleOrderAction(id, 'complete');
+	  }
+	  if (e.target.classList.contains('decline-btn')) {
+		await handleOrderAction(id, 'decline');
+	  }
+	});
+
+	async function handleOrderAction(id, action) {
+	  try {
+		const res = await fetch(`/api/admin/orders/${id}/${action}`, { method: 'POST' });
+		if (res.ok) {
+		  await loadOrders(); // ✅ this reloads orders
+		} else {
+		  const err = await res.json();
+		  alert(err.error || 'Action failed');
+		}
+	  } catch {
+		alert('Network error');
+	  }
+	}
 
     productsTableBody?.addEventListener('click', (e) => {
       const id = e.target.dataset.id;
@@ -310,13 +329,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-    orderSearchInput?.addEventListener('input', () => {
-      const q = orderSearchInput.value.toLowerCase();
-      const filtered = orders.filter(o =>
-        o.buyer_email.toLowerCase().includes(q) || o.product_name.toLowerCase().includes(q)
-      );
-      renderOrders(filtered);
-    });
+	orderSearchInput?.addEventListener('input', () => {
+	  const q = orderSearchInput.value.toLowerCase();
+	  const filtered = orders.filter(o =>
+		o.buyer_email.toLowerCase().includes(q) ||
+		o.product_name.toLowerCase().includes(q) ||
+		o.buyer_id.toLowerCase().includes(q)  // ✅ Add this
+	  );
+	  renderOrders(filtered);
+	});
 
     loadOrders();
     loadProducts();
@@ -360,14 +381,16 @@ document.addEventListener('DOMContentLoaded', () => {
         emailPasswords.push({ email: el('email2').value, password: el('password2').value });
       }
 
-      const payload = {
-        id: el('product-id').value || null,
-        name: el('name').value,
-        description: el('description').value,
-        price: el('price').value,
-        image_url: el('image_url').value,
-        emailPasswords
-      };
+		const payload = {
+		  id: el('product-id').value || null,
+		  name: el('name').value.trim(),
+		  description: el('description').value.trim(),
+		  price: parseFloat(el('price').value),        // FIX: Ensure price is a number
+		  image_url: el('image_url').value.trim(),     // FIX: Ensure image_url is passed
+		  emailPasswords
+		};
+
+		console.log('Sending product:', payload);
 
       try {
         const res = await fetch('/api/admin/products', {

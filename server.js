@@ -37,7 +37,7 @@ function isAdmin(req, res, next) {
   return res.status(401).send('Unauthorized');
 }
 
-// Public: List products
+// Products
 app.get('/api/products', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM products');
@@ -48,7 +48,6 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// Public: Place an order
 app.post('/api/orders', async (req, res) => {
   const { productId, buyerEmail } = req.body;
   if (!productId || !buyerEmail) return res.status(400).json({ error: 'Missing productId or buyerEmail' });
@@ -57,10 +56,10 @@ app.post('/api/orders', async (req, res) => {
     const buyerId = Math.random().toString(36).slice(2, 10).toUpperCase();
     const timestamp = new Date().toLocaleString();
 
-    await db.query(
-      'INSERT INTO orders (product_id, buyer_email, buyer_id, status, created_at) VALUES (?, ?, ?, ?, NOW())',
-      [productId, buyerEmail, buyerId, 'pending']
-    );
+	await db.query(
+	  'INSERT INTO orders (product_id, buyer_email, buyer_id, status, created_at) VALUES (?, ?, ?, ?, NOW())',
+	  [productId, buyerEmail, buyerId, 'pending']
+	);
 
     const [[product]] = await db.query('SELECT * FROM products WHERE id = ?', [productId]);
 
@@ -90,9 +89,9 @@ app.post('/api/orders', async (req, res) => {
         <p><strong>Time:</strong> ${timestamp}</p>
         <h3>Next Steps:</h3>
         <ol>
-          <li>Open CashApp and send the payment to <strong>$fastfire9</strong></li>
-          <li>Include your <strong>Buyer ID: ${buyerId}</strong> in the note</li>
-          <li>Upload your screenshot on the site</li>
+          <li>Send payment to <strong>$fastfire9</strong></li>
+          <li>Include Buyer ID: <strong>${buyerId}</strong> in the note</li>
+          <li>Upload your screenshot</li>
         </ol>
       `
     });
@@ -104,7 +103,7 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// Admin: Login/Logout
+// Admin
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
   if (
@@ -122,7 +121,6 @@ app.post('/api/admin/logout', isAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// Admin: View Orders
 app.get('/api/admin/orders', isAdmin, async (req, res) => {
   try {
     const [orders] = await db.query(`
@@ -138,54 +136,63 @@ app.get('/api/admin/orders', isAdmin, async (req, res) => {
   }
 });
 
-// Accept Order → Email + DELETE
-app.post('/api/admin/orders/:orderId/accept', isAdmin, async (req, res) => {
-  const orderId = req.params.orderId;
+// Accept Order — sends CashApp link, does NOT delete
+app.post('/api/admin/orders/:buyerId/accept', isAdmin, async (req, res) => {
+  const buyerId = req.params.buyerId;
   try {
-    const [[order]] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+    const [[order]] = await db.query('SELECT * FROM orders WHERE buyer_id = ?', [buyerId]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     await transporter.sendMail({
       from: process.env.SMTP_USER,
       to: order.buyer_email,
       subject: 'Payment Instructions',
-      text: `Hello,\n\nPlease send your payment to CashApp with this note:\nBuyer ID: ${order.buyer_id}\n\nThen upload your screenshot.`
+      text: `Hello,\n\nPlease send your payment to CashApp:\n\n$fastfire9\n\nInclude your Buyer ID in the note:\n${order.buyer_id}\n\nThen upload your screenshot on the site.`
     });
 
-    await db.query('DELETE FROM orders WHERE id = ?', [orderId]); // ✅ deletes order
-    res.json({ success: true });
+    res.json({ success: true }); // ✅ DO NOT delete order
   } catch (err) {
-    console.error(err);
+    console.error('Accept Order Error:', err);
     res.status(500).json({ error: 'Failed to accept order' });
   }
 });
 
-// Decline Order → Delete
-app.post('/api/admin/orders/:orderId/decline', isAdmin, async (req, res) => {
-  const orderId = req.params.orderId;
+// Decline Order — sends email + deletes
+app.post('/api/admin/orders/:buyerId/decline', isAdmin, async (req, res) => {
+  const buyerId = req.params.buyerId;
+
   try {
-    const [[order]] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+    const [[order]] = await db.query('SELECT * FROM orders WHERE buyer_id = ?', [buyerId]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    await db.query('DELETE FROM orders WHERE id = ?', [orderId]); // ✅ deletes order
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: order.buyer_email,
+      subject: 'Order Declined',
+      text: `Hello,\n\nYour order with Buyer ID ${order.buyer_id} has been declined.\nIf this was a mistake or you believe you paid, please contact support.`
+    });
+
+    await db.query('DELETE FROM orders WHERE buyer_id = ?', [buyerId]);
+
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('Decline Order Error:', err);
     res.status(500).json({ error: 'Failed to decline order' });
   }
 });
 
-// Accept Sale → Send credentials + delete order
-app.post('/api/admin/orders/:orderId/complete', isAdmin, async (req, res) => {
-  const orderId = req.params.orderId;
+// Complete Order — sends credentials + deletes
+app.post('/api/admin/orders/:buyerId/complete', isAdmin, async (req, res) => {
+  const buyerId = req.params.buyerId;
   try {
-    const [[order]] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
+    const [[order]] = await db.query('SELECT * FROM orders WHERE buyer_id = ?', [buyerId]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
     const [creds] = await db.query(
       'SELECT * FROM product_credentials WHERE product_id = ? AND assigned = false LIMIT 1',
       [order.product_id]
     );
+
     if (!creds.length) return res.status(400).json({ error: 'No available credentials' });
 
     const credential = creds[0];
@@ -195,20 +202,22 @@ app.post('/api/admin/orders/:orderId/complete', isAdmin, async (req, res) => {
       from: process.env.SMTP_USER,
       to: order.buyer_email,
       subject: 'Your Credentials',
-      text: `Thank you! Your credentials:\nEmail: ${credential.email}\nPassword: ${credential.password}`
+      text: `Thank you for your purchase!\n\nHere are your credentials:\nEmail: ${credential.email}\nPassword: ${credential.password}`
     });
 
-    await db.query('DELETE FROM orders WHERE id = ?', [orderId]); // ✅ deletes order
+    await db.query('DELETE FROM orders WHERE buyer_id = ?', [buyerId]); // ✅ fixed here
     res.json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error('Complete Order Error:', err);
     res.status(500).json({ error: 'Failed to complete order' });
   }
 });
 
+
 // Add or Update Product
 app.post('/api/admin/products', isAdmin, async (req, res) => {
-  let { id, name, description, price, image_url, emailPasswords } = req.body;
+  let { id, name, description, price, image, image_url, emailPasswords } = req.body;
+  image_url = image_url || image || '';
 
   try {
     if (id) {
@@ -218,19 +227,12 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
       name = name || current.name;
       description = description || current.description;
       price = price || current.price;
-      image_url = image_url || current.image_url;
 
-      await db.query(
-        'UPDATE products SET name = ?, description = ?, price = ?, image_url = ? WHERE id = ?',
-        [name, description, price, image_url, id]
-      );
+      await db.query('UPDATE products SET name = ?, description = ?, price = ?, image_url = ? WHERE id = ?', [name, description, price, image_url, id]);
 
       if (Array.isArray(emailPasswords)) {
         for (let cred of emailPasswords) {
-          await db.query(
-            'INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)',
-            [id, cred.email, cred.password]
-          );
+          await db.query('INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)', [id, cred.email, cred.password]);
         }
       }
 
@@ -240,18 +242,12 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
-      const [result] = await db.query(
-        'INSERT INTO products (name, description, price, image_url) VALUES (?, ?, ?, ?)',
-        [name, description, price, image_url]
-      );
+      const [result] = await db.query('INSERT INTO products (name, description, price, image_url) VALUES (?, ?, ?, ?)', [name, description, price, image_url]);
       const productId = result.insertId;
 
       if (Array.isArray(emailPasswords)) {
         for (let cred of emailPasswords) {
-          await db.query(
-            'INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)',
-            [productId, cred.email, cred.password]
-          );
+          await db.query('INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)', [productId, cred.email, cred.password]);
         }
       }
 
@@ -263,7 +259,6 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
   }
 });
 
-// Delete Product
 app.delete('/api/products/:id', isAdmin, async (req, res) => {
   const id = req.params.id;
   try {
@@ -276,7 +271,6 @@ app.delete('/api/products/:id', isAdmin, async (req, res) => {
   }
 });
 
-// Get Product by ID (Admin Edit)
 app.get('/api/admin/product/:id', isAdmin, async (req, res) => {
   const id = req.params.id;
   try {
@@ -291,37 +285,92 @@ app.get('/api/admin/product/:id', isAdmin, async (req, res) => {
   }
 });
 
-// OCR Upload
 app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   try {
     const result = await tesseract.recognize(req.file.path, 'eng');
-    const text = result.data.text;
+    const rawText = result.data.text;
     fs.unlink(req.file.path, () => {});
+    console.log('📄 OCR Extracted Text:', JSON.stringify(rawText));
 
-    const buyerIdMatch = text.match(/[A-Z0-9]{8}/);
+    // Normalize function
+    function normalize(text) {
+      return text
+        .replace(/[^a-z0-9]/gi, '')       // remove non-alphanumerics
+        .replace(/S/g, '5')               // S → 5
+        .replace(/O/g, '0')               // O → 0
+        .replace(/I/g, '1')               // I → 1
+        .toUpperCase();
+    }
 
-    if (buyerIdMatch) {
-      return res.json({
-        success: true,
-        message: 'Payment verified',
-        buyerId: buyerIdMatch[0],
-        rawText: text
-      });
-    } else {
+    // Extract buyer ID candidates
+    const buyerIdMatches = [...rawText.matchAll(/\b[A-Z0-9]{8}\b/g)];
+    const buyerIdCandidates = buyerIdMatches.map(m => normalize(m[0]));
+
+    // Extract price
+    const priceMatch = rawText.match(/[$S]?\s*(\d+(\.\d{1,2})?)/);
+    const extractedPrice = priceMatch?.[1] || null;
+
+    // CashApp tag check
+    const tagValid = /[$S][fF]astfire9/.test(rawText);
+
+    let matchedOrder = null;
+    let matchedBuyerId = null;
+
+    // Try each candidate
+    for (const candidate of buyerIdCandidates) {
+      const [[order]] = await db.query(`
+        SELECT o.*, p.price 
+        FROM orders o 
+        JOIN products p ON o.product_id = p.id 
+        WHERE o.buyer_id = ?
+      `, [candidate]);
+
+      if (order) {
+        matchedOrder = order;
+        matchedBuyerId = candidate;
+        break;
+      }
+    }
+
+    if (!matchedOrder) {
+      await notifyFlagged(rawText, 'No matching Buyer ID found', buyerIdCandidates.join(', '));
+      return res.json({ success: false, message: 'Buyer ID not found', rawText });
+    }
+
+    // Price match (within a few cents)
+    const priceValid =
+      extractedPrice &&
+      Math.abs(parseFloat(extractedPrice) - parseFloat(matchedOrder.price)) < 0.01;
+
+    if (priceValid && tagValid) {
+      const [creds] = await db.query(`
+        SELECT * FROM product_credentials 
+        WHERE product_id = ? AND assigned = false LIMIT 1
+      `, [matchedOrder.product_id]);
+
+      if (!creds.length) {
+        return res.status(400).json({ error: 'No credentials available' });
+      }
+
+      const credential = creds[0];
+      await db.query('UPDATE product_credentials SET assigned = true WHERE id = ?', [credential.id]);
+
       await transporter.sendMail({
         from: process.env.SMTP_USER,
-        to: process.env.OWNER_EMAIL,
-        subject: '⚠️ OCR Payment Verification Failed',
-        text: `A screenshot was uploaded, but no Buyer ID was detected.\n\nOCR Text:\n${text}`
+        to: matchedOrder.buyer_email,
+        subject: 'Your Credentials',
+        text: `Email: ${credential.email}\nPassword: ${credential.password}`
       });
 
-      return res.json({
-        success: false,
-        message: 'Payment verification failed. Manual review required.',
-        rawText: text
-      });
+      await db.query('DELETE FROM orders WHERE id = ?', [matchedOrder.id]);
+
+      return res.json({ success: true, message: 'Payment verified. Credentials sent.' });
+    } else {
+      await db.query('UPDATE orders SET status = ? WHERE id = ?', ['flagged', matchedOrder.id]);
+      await notifyFlagged(rawText, `Flagged: Price match: ${priceValid}, Tag match: ${tagValid}`, matchedBuyerId);
+      return res.json({ success: false, message: 'Order flagged. Manual review required.', buyerId: matchedBuyerId });
     }
   } catch (err) {
     console.error(err);
@@ -329,11 +378,18 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
   }
 });
 
-// Serve static frontend & fallback
+
+async function notifyFlagged(ocrText, reason, buyerId = 'UNKNOWN') {
+  await transporter.sendMail({
+    from: process.env.SMTP_USER,
+    to: process.env.OWNER_EMAIL,
+    subject: '🚨 OCR Payment Flagged',
+    text: `Buyer ID: ${buyerId}\nReason: ${reason}\n\nFull OCR Text:\n${ocrText}`
+  });
+}
+
 app.use(express.static('public'));
-app.use('/api', (req, res) => {
-  res.status(404).json({ error: 'API route not found' });
-});
+app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
 
 app.listen(PORT, () => {
   console.log(`🚗 Server is running on http://localhost:${PORT}`);
