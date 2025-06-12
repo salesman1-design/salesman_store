@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
   const el = id => document.getElementById(id);
-
   const pathname = window.location.pathname;
 
   // === USER SITE CODE ===
@@ -200,22 +199,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderOrders(orderList) {
       if (!ordersTableBody) return;
       ordersTableBody.innerHTML = '';
-      if (!orderList.length) {
-        ordersTableBody.innerHTML = `<tr><td colspan="6">No orders available</td></tr>`;
+      const pending = orderList.filter(o => o.status === 'pending');
+      if (!pending.length) {
+        ordersTableBody.innerHTML = `<tr><td colspan="6">No pending orders</td></tr>`;
         return;
       }
-      orderList.forEach(o => {
+      pending.forEach(o => {
         ordersTableBody.innerHTML += `
           <tr>
-            <td>${o.id}</td>
+            <td>${o.buyer_id}</td>
             <td>${o.buyer_email}</td>
             <td>${o.product_name}</td>
             <td>${o.status}</td>
             <td>
-              ${o.status === 'pending' ? `
-                <button class="accept-btn" data-id="${o.id}">Accept</button>
-                <button class="decline-btn" data-id="${o.id}">Decline</button>
-              ` : '—'}
+              <button class="accept-btn" data-id="${o.id}">Accept</button>
+              <button class="decline-btn" data-id="${o.id}">Decline</button>
             </td>
             <td>${o.proof ? `<a href="${o.proof}" target="_blank">View</a>` : '—'}</td>
           </tr>`;
@@ -271,9 +269,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     ordersTableBody?.addEventListener('click', async (e) => {
-      if (e.target.classList.contains('accept-btn') || e.target.classList.contains('decline-btn')) {
-        const orderId = e.target.dataset.id;
-        const action = e.target.classList.contains('accept-btn') ? 'accept' : 'decline';
+      const orderId = e.target.dataset.id;
+      const action = e.target.classList.contains('accept-btn')
+        ? 'accept'
+        : e.target.classList.contains('decline-btn')
+        ? 'decline'
+        : null;
+
+      if (orderId && action) {
         try {
           const res = await fetch(`/api/admin/orders/${orderId}/${action}`, { method: 'POST' });
           if (res.ok) {
@@ -335,33 +338,36 @@ document.addEventListener('DOMContentLoaded', () => {
             el('name').value = data.name;
             el('description').value = data.description;
             el('price').value = data.price;
-            el('image_url').value = data.image_url;
-            el('email1').value = data.email1;
-            el('email2').value = data.email2;
-            el('password1').value = data.password1;
-            el('password2').value = data.password2;
+            el('image_url').value = data.image_url || data.image || '';
+            if (data.credentials && data.credentials.length > 0) {
+              el('email1').value = data.credentials[0]?.email || '';
+              el('password1').value = data.credentials[0]?.password || '';
+              el('email2').value = data.credentials[1]?.email || '';
+              el('password2').value = data.credentials[1]?.password || '';
+            }
           }
         });
     }
 
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
-		const emailPasswords = [];
-		if (el('email1').value && el('password1').value) {
-		  emailPasswords.push({ email: el('email1').value, password: el('password1').value });
-		}
-		if (el('email2').value && el('password2').value) {
-		  emailPasswords.push({ email: el('email2').value, password: el('password2').value });
-		}
 
-		const payload = {
-		  id: el('product-id').value || null,
-		  name: el('name').value,
-		  description: el('description').value,
-		  price: el('price').value,
-		  image: el('image_url').value,
-		  emailPasswords
-		};
+      const emailPasswords = [];
+      if (el('email1').value && el('password1').value) {
+        emailPasswords.push({ email: el('email1').value, password: el('password1').value });
+      }
+      if (el('email2').value && el('password2').value) {
+        emailPasswords.push({ email: el('email2').value, password: el('password2').value });
+      }
+
+      const payload = {
+        id: el('product-id').value || null,
+        name: el('name').value,
+        description: el('description').value,
+        price: el('price').value,
+        image_url: el('image_url').value,
+        emailPasswords
+      };
 
       try {
         const res = await fetch('/api/admin/products', {

@@ -4,7 +4,6 @@ const session = require('express-session');
 const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
 const multer = require('multer');
-const path = require('path');
 const tesseract = require('tesseract.js');
 const db = require('./db');
 const fs = require('fs');
@@ -21,10 +20,7 @@ app.use(session({
   saveUninitialized: false,
 }));
 
-const upload = multer({
-  dest: 'uploads/',
-  limits: { fileSize: 5 * 1024 * 1024 },
-});
+const upload = multer({ dest: 'uploads/', limits: { fileSize: 5 * 1024 * 1024 } });
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -68,7 +64,7 @@ app.post('/api/orders', async (req, res) => {
 
     const [[product]] = await db.query('SELECT * FROM products WHERE id = ?', [productId]);
 
-    const adminMail = {
+    await transporter.sendMail({
       from: process.env.SMTP_USER,
       to: process.env.OWNER_EMAIL,
       subject: `New Order from ${buyerEmail}`,
@@ -80,10 +76,9 @@ app.post('/api/orders', async (req, res) => {
         <p><strong>Buyer ID:</strong> ${buyerId}</p>
         <p><strong>Time:</strong> ${timestamp}</p>
       `
-    };
-    await transporter.sendMail(adminMail);
+    });
 
-    const buyerMail = {
+    await transporter.sendMail({
       from: process.env.SMTP_USER,
       to: buyerEmail,
       subject: `Your Order for ${product.name}`,
@@ -100,8 +95,7 @@ app.post('/api/orders', async (req, res) => {
           <li>Upload your screenshot on the site</li>
         </ol>
       `
-    };
-    await transporter.sendMail(buyerMail);
+    });
 
     res.json({ message: 'Order placed. Check your email.', buyerId });
   } catch (err) {
@@ -110,7 +104,7 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// Admin login/logout
+// Admin: Login/Logout
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
   if (
@@ -120,7 +114,6 @@ app.post('/api/admin/login', (req, res) => {
     req.session.isAdmin = true;
     return res.json({ success: true });
   }
-
   res.status(401).json({ success: false, message: 'Invalid credentials' });
 });
 
@@ -129,11 +122,11 @@ app.post('/api/admin/logout', isAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// Admin: View orders
+// Admin: View Orders
 app.get('/api/admin/orders', isAdmin, async (req, res) => {
   try {
     const [orders] = await db.query(`
-      SELECT o.id, o.buyer_email, o.buyer_id, o.status, o.created_at, p.name as product_name
+      SELECT o.id, o.buyer_email, o.buyer_id, o.status, o.created_at, p.name as product_name, p.price
       FROM orders o
       JOIN products p ON o.product_id = p.id
       ORDER BY o.created_at DESC
@@ -145,56 +138,44 @@ app.get('/api/admin/orders', isAdmin, async (req, res) => {
   }
 });
 
-// ✅ Admin: Accept order
+// Accept Order → Email + DELETE
 app.post('/api/admin/orders/:orderId/accept', isAdmin, async (req, res) => {
   const orderId = req.params.orderId;
-
   try {
     const [[order]] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
-    if (!order) {
-      console.error('Order not found:', orderId);
-      return res.status(404).json({ error: 'Order not found' });
-    }
+    if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    await db.query('UPDATE orders SET status = ? WHERE id = ?', ['accepted', orderId]);
-
-    const mailOptions = {
+    await transporter.sendMail({
       from: process.env.SMTP_USER,
       to: order.buyer_email,
       subject: 'Payment Instructions',
-      text: `Hello,\n\nPlease send your payment to CashApp with this note:\nBuyer ID: ${order.buyer_id}\n\nThen upload your screenshot.`,
-    };
-
-    transporter.sendMail(mailOptions, (err, info) => {
-      if (err) {
-        console.error('Error sending payment email:', err);
-        return res.status(500).json({ error: 'Failed to send email' });
-      }
-      console.log('Payment instructions sent:', info.response);
-      res.json({ success: true });
+      text: `Hello,\n\nPlease send your payment to CashApp with this note:\nBuyer ID: ${order.buyer_id}\n\nThen upload your screenshot.`
     });
+
+    await db.query('DELETE FROM orders WHERE id = ?', [orderId]); // ✅ deletes order
+    res.json({ success: true });
   } catch (err) {
-    console.error('Error accepting order:', err);
+    console.error(err);
     res.status(500).json({ error: 'Failed to accept order' });
   }
 });
 
-// ✅ Admin: Decline order
+// Decline Order → Delete
 app.post('/api/admin/orders/:orderId/decline', isAdmin, async (req, res) => {
   const orderId = req.params.orderId;
   try {
     const [[order]] = await db.query('SELECT * FROM orders WHERE id = ?', [orderId]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    await db.query('UPDATE orders SET status = ? WHERE id = ?', ['declined', orderId]);
+    await db.query('DELETE FROM orders WHERE id = ?', [orderId]); // ✅ deletes order
     res.json({ success: true });
   } catch (err) {
-    console.error('Error declining order:', err);
+    console.error(err);
     res.status(500).json({ error: 'Failed to decline order' });
   }
 });
 
-// Admin: Complete order
+// Accept Sale → Send credentials + delete order
 app.post('/api/admin/orders/:orderId/complete', isAdmin, async (req, res) => {
   const orderId = req.params.orderId;
   try {
@@ -209,18 +190,15 @@ app.post('/api/admin/orders/:orderId/complete', isAdmin, async (req, res) => {
 
     const credential = creds[0];
     await db.query('UPDATE product_credentials SET assigned = true WHERE id = ?', [credential.id]);
-    await db.query('UPDATE orders SET status = ? WHERE id = ?', ['completed', orderId]);
 
-    const mailOptions = {
+    await transporter.sendMail({
       from: process.env.SMTP_USER,
       to: order.buyer_email,
       subject: 'Your Credentials',
-      text: `Thank you! Your credentials:\nEmail: ${credential.email}\nPassword: ${credential.password}`,
-    };
-    transporter.sendMail(mailOptions, (err) => {
-      if (err) console.error('Credential email error:', err);
+      text: `Thank you! Your credentials:\nEmail: ${credential.email}\nPassword: ${credential.password}`
     });
 
+    await db.query('DELETE FROM orders WHERE id = ?', [orderId]); // ✅ deletes order
     res.json({ success: true });
   } catch (err) {
     console.error(err);
@@ -228,9 +206,9 @@ app.post('/api/admin/orders/:orderId/complete', isAdmin, async (req, res) => {
   }
 });
 
-// Admin: Add or update product
+// Add or Update Product
 app.post('/api/admin/products', isAdmin, async (req, res) => {
-  let { id, name, description, price, image, emailPasswords } = req.body;
+  let { id, name, description, price, image_url, emailPasswords } = req.body;
 
   try {
     if (id) {
@@ -240,11 +218,11 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
       name = name || current.name;
       description = description || current.description;
       price = price || current.price;
-      image = image || current.image;
+      image_url = image_url || current.image_url;
 
       await db.query(
-        'UPDATE products SET name = ?, description = ?, price = ?, image = ? WHERE id = ?',
-        [name, description, price, image, id]
+        'UPDATE products SET name = ?, description = ?, price = ?, image_url = ? WHERE id = ?',
+        [name, description, price, image_url, id]
       );
 
       if (Array.isArray(emailPasswords)) {
@@ -258,13 +236,13 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
 
       return res.json({ success: true });
     } else {
-      if (!name || !description || !price || !image) {
+      if (!name || !description || !price || !image_url) {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
       const [result] = await db.query(
-        'INSERT INTO products (name, description, price, image) VALUES (?, ?, ?, ?)',
-        [name, description, price, image]
+        'INSERT INTO products (name, description, price, image_url) VALUES (?, ?, ?, ?)',
+        [name, description, price, image_url]
       );
       const productId = result.insertId;
 
@@ -285,8 +263,8 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
   }
 });
 
-// Admin: Delete product
-app.post('/api/admin/products/:id/delete', isAdmin, async (req, res) => {
+// Delete Product
+app.delete('/api/products/:id', isAdmin, async (req, res) => {
   const id = req.params.id;
   try {
     await db.query('DELETE FROM product_credentials WHERE product_id = ?', [id]);
@@ -298,7 +276,7 @@ app.post('/api/admin/products/:id/delete', isAdmin, async (req, res) => {
   }
 });
 
-// Admin: Get product by ID
+// Get Product by ID (Admin Edit)
 app.get('/api/admin/product/:id', isAdmin, async (req, res) => {
   const id = req.params.id;
   try {
@@ -306,7 +284,6 @@ app.get('/api/admin/product/:id', isAdmin, async (req, res) => {
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
     const [credentials] = await db.query('SELECT id, email, password FROM product_credentials WHERE product_id = ?', [id]);
-
     res.json({ ...product, credentials });
   } catch (err) {
     console.error(err);
@@ -314,7 +291,7 @@ app.get('/api/admin/product/:id', isAdmin, async (req, res) => {
   }
 });
 
-// Upload screenshot for OCR
+// OCR Upload
 app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -324,10 +301,27 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
     fs.unlink(req.file.path, () => {});
 
     const buyerIdMatch = text.match(/[A-Z0-9]{8}/);
+
     if (buyerIdMatch) {
-      return res.json({ success: true, message: 'Payment verified', buyerId: buyerIdMatch[0], rawText: text });
+      return res.json({
+        success: true,
+        message: 'Payment verified',
+        buyerId: buyerIdMatch[0],
+        rawText: text
+      });
     } else {
-      return res.json({ success: false, message: 'Payment verification failed', rawText: text });
+      await transporter.sendMail({
+        from: process.env.SMTP_USER,
+        to: process.env.OWNER_EMAIL,
+        subject: '⚠️ OCR Payment Verification Failed',
+        text: `A screenshot was uploaded, but no Buyer ID was detected.\n\nOCR Text:\n${text}`
+      });
+
+      return res.json({
+        success: false,
+        message: 'Payment verification failed. Manual review required.',
+        rawText: text
+      });
     }
   } catch (err) {
     console.error(err);
@@ -335,8 +329,8 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
   }
 });
 
+// Serve static frontend & fallback
 app.use(express.static('public'));
-
 app.use('/api', (req, res) => {
   res.status(404).json({ error: 'API route not found' });
 });
