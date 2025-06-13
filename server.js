@@ -5,8 +5,13 @@ const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
 const multer = require('multer');
 const tesseract = require('tesseract.js');
-const db = require('./db');
 const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const dayjs = require('dayjs');
+const db = require('./db');
+const fuzz = require('fuzzball'); // <-- added for fuzzy matching
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -289,124 +294,184 @@ app.get('/api/admin/product/:id', isAdmin, async (req, res) => {
   }
 });
 
+
 app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   try {
-    const result = await tesseract.recognize(req.file.path, 'eng');
+    const imagePath = req.file.path;
+    const imageBuffer = fs.readFileSync(imagePath);
+    const imageHash = crypto.createHash('sha256').update(imageBuffer).digest('hex');
+
+    const existingHash = await db.query('SELECT id FROM flagged_images WHERE hash = ?', [imageHash]);
+    if (existingHash[0].length > 0) {
+      console.warn('⚠️ Duplicate image detected via checksum');
+      return res.status(400).json({ error: 'Duplicate screenshot detected' });
+    }
+
+    const result = await tesseract.recognize(imagePath, 'eng');
     const rawText = result.data.text;
-    fs.unlink(req.file.path, () => {});
     console.log('📄 OCR Extracted Text:', JSON.stringify(rawText));
 
-    // 🔧 Load tag(s) from .env (can be comma-separated)
-    const rawTags = (process.env.CASHAPP_TAG || '').split(',').map(t => t.trim()).filter(Boolean);
+    const logDir = path.join(__dirname, 'ocr_logs', dayjs().format('YYYY-MM-DD'));
+    fs.mkdirSync(logDir, { recursive: true });
+    const timestamp = dayjs().format('YYYYMMDD_HHmmss');
+    const logFile = path.join(logDir, `ocr_log_${timestamp}.txt`);
+    fs.writeFileSync(logFile, rawText + os.EOL);
+    console.log('📁 Saved OCR log to:', logFile);
 
-    // Normalize helper
+    const primaryTag = process.env.CASHAPP_TAG_PRIMARY || '';
+    const fallbackRaw = process.env.CASHAPP_TAG_FALLBACK || '';
+    const fallbackTags = fallbackRaw.split(',').map(t => t.trim()).filter(Boolean);
+
     function normalize(str) {
       return str
-        .replace(/[^a-z0-9]/gi, '')  // strip non-alphanumerics
+        .replace(/[^a-z0-9]/gi, '')
         .replace(/S/g, '5')
         .replace(/s/g, '5')
         .replace(/O/g, '0')
         .replace(/o/g, '0')
         .replace(/I/g, '1')
         .replace(/l/g, '1')
+        .replace(/J/g, 'R')
         .toUpperCase();
     }
 
-    const normalizedText = normalize(rawText);
-    const normalizedTags = rawTags.map(normalize);
-    const tagValid = normalizedTags.some(tag => normalizedText.includes(tag));
-    console.log('🏷️ Normalized Tags from .env:', normalizedTags);
-    console.log('🔍 Tag Valid:', tagValid);
+    const rawTextFlat = rawText.replace(/[\r\n]+/g, ' ');
+    const normalizedText = normalize(rawTextFlat);
 
-    // 🧾 Extract Buyer ID candidates
-    const buyerIdMatches = [...rawText.matchAll(/\b[A-Z0-9]{8}\b/gi)];
-    const buyerIdCandidates = buyerIdMatches.map(m => normalize(m[0]));
-    console.log('🧾 Buyer ID Candidates:', buyerIdCandidates);
+    if (/pending|incomplete|not.*complete/i.test(rawText)) {
+      await notifyFlagged(rawText, 'Payment status not marked as Completed');
+      return res.status(400).json({ error: 'Payment not marked as Completed' });
+    }
 
-    // 💵 Extract price (e.g. $5.50)
-    const priceMatch = rawText.match(/[$S]?\s*(\d+(\.\d{1,2})?)/);
-    const extractedPrice = priceMatch?.[1] || null;
-    console.log('💰 Extracted Price:', extractedPrice);
+    const normalizedPrimary = normalize(primaryTag);
+    const normalizedFallbacks = fallbackTags.map(normalize);
 
-    // 🔍 Try matching order by Buyer ID
+    let tagMatched = null;
+    if (normalizedText.includes(normalizedPrimary)) {
+      tagMatched = normalizedPrimary;
+    } else {
+      for (const fallback of normalizedFallbacks) {
+        if (normalizedText.includes(fallback)) {
+          tagMatched = fallback;
+          break;
+        }
+      }
+    }
+    if (!tagMatched) {
+      const allTags = [normalizedPrimary, ...normalizedFallbacks];
+      for (const tag of allTags) {
+        const score = fuzz.partial_ratio(normalizedText, tag);
+        if (score >= 80) {
+          tagMatched = tag;
+          break;
+        }
+      }
+    }
+    const tagValid = !!tagMatched;
+
+    const words = rawTextFlat.split(/\s+/);
+    const buyerIdCandidates = new Set();
+    for (let i = 0; i < words.length - 1; i++) {
+      const w1 = words[i].replace(/[^a-zA-Z0-9]/g, '');
+      const w2 = words[i + 1].replace(/[^a-zA-Z0-9]/g, '');
+      if (w1.length >= 2 && w2.length >= 4) {
+        const combined = normalize(w1 + w2);
+        if (/^[A-Z0-9]{8}$/.test(combined)) buyerIdCandidates.add(combined);
+      }
+    }
+    const soloMatches = [...rawTextFlat.matchAll(/\b[A-Z0-9]{8}\b/gi)].map(m => normalize(m[0]));
+    soloMatches.forEach(id => buyerIdCandidates.add(id));
+    const buyerIdList = [...buyerIdCandidates];
+
+    let extractedPrice = null;
+    const dollarPriceMatch = rawTextFlat.match(/\$\s*(\d{1,3}(?:\.\d{1,2})?)/);
+    if (dollarPriceMatch) extractedPrice = dollarPriceMatch[1];
+
+    if (!extractedPrice) {
+      const priceRegex = /(?:\$|USD)?\s*(\d{1,3}(?:\.\d{1,2})?)/gi;
+      const priceCandidates = [...rawTextFlat.matchAll(priceRegex)].map(m => m[1]);
+      for (let price of priceCandidates) {
+        const contextMatch = new RegExp(`[\\/:-]\s*${price}\b|\b${price}\s*[\\/:-]`, 'i');
+        if (contextMatch.test(rawTextFlat)) continue;
+        if (parseFloat(price) < 100) {
+          extractedPrice = price;
+          break;
+        }
+      }
+    }
+    if (!extractedPrice) {
+      const fallback = [...rawTextFlat.matchAll(/\b\d{1,2}\.\d{2}\b/g)].map(m => m[0]);
+      extractedPrice = fallback.find(p => parseFloat(p) < 100) || null;
+    }
+
+    const [allOrders] = await db.query(`
+      SELECT o.*, p.price AS product_price FROM orders o JOIN products p ON o.product_id = p.id
+    `);
+
     let matchedOrder = null;
     let matchedBuyerId = null;
+    let bestScore = 0;
 
-    for (const candidate of buyerIdCandidates) {
-      const [[order]] = await db.query(`
-        SELECT o.*, p.price 
-        FROM orders o 
-        JOIN products p ON o.product_id = p.id 
-        WHERE UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(o.buyer_id, 'S', '5'), 'O', '0'), 'I', '1'), 'l', '1'), '-', '')) = ?
-      `, [candidate]);
-
-      if (order) {
-        matchedOrder = order;
-        matchedBuyerId = candidate;
-        break;
+    for (const order of allOrders) {
+      const dbBuyerId = normalize(order.buyer_id);
+      for (const candidate of buyerIdList) {
+        const score = fuzz.ratio(dbBuyerId, candidate);
+        if (score > bestScore && score >= 70) {
+          bestScore = score;
+          matchedOrder = order;
+          matchedBuyerId = candidate;
+        }
       }
     }
+
+    const flaggedPath = path.join(logDir, `flagged_${timestamp}${path.extname(req.file.originalname)}`);
+    fs.copyFileSync(imagePath, flaggedPath);
 
     if (!matchedOrder) {
-      console.warn('❌ No matching order for Buyer ID:', buyerIdCandidates.join(', '));
-      await notifyFlagged(rawText, 'No matching Buyer ID found', buyerIdCandidates.join(', ') || 'None');
-      return res.json({
-        success: false,
-        message: 'Buyer ID not found',
-        rawText,
-        buyerIdCandidates
-      });
+      await db.query('INSERT INTO flagged_images (hash) VALUES (?)', [imageHash]);
+      await notifyFlagged(rawText, 'No matching Buyer ID found', buyerIdList.join(', ') || 'None');
+      return res.json({ success: false, message: 'Buyer ID not found', rawText, buyerIdCandidates: buyerIdList });
     }
 
-    // 🎯 Price check (±0.01 tolerance)
-    const priceValid =
-      extractedPrice &&
-      Math.abs(parseFloat(extractedPrice) - parseFloat(matchedOrder.price)) < 0.01;
+    const priceValid = extractedPrice && Math.abs(parseFloat(extractedPrice) - parseFloat(matchedOrder.product_price)) < 0.01;
+    const suspect = bestScore < 85;
 
-    // 🎁 Deliver credentials if valid
-    if (priceValid && tagValid) {
-      const [creds] = await db.query(`
-        SELECT * FROM product_credentials 
-        WHERE product_id = ? AND assigned = false LIMIT 1
-      `, [matchedOrder.product_id]);
+    console.log(`🧠 Match Debug: Buyer ID = ${matchedBuyerId} (score=${bestScore}), Price OK = ${priceValid}, Tag OK = ${tagValid}`);
 
-      if (!creds.length) {
-        console.warn('❌ No credentials available');
-        return res.status(400).json({ error: 'No credentials available' });
-      }
+    if (priceValid && tagValid && !suspect) {
+      const [creds] = await db.query('SELECT * FROM product_credentials WHERE product_id = ? AND assigned = false LIMIT 1', [matchedOrder.product_id]);
+      if (!creds.length) return res.status(400).json({ error: 'No credentials available' });
 
       const credential = creds[0];
       await db.query('UPDATE product_credentials SET assigned = true WHERE id = ?', [credential.id]);
-
       await transporter.sendMail({
         from: process.env.SMTP_USER,
         to: matchedOrder.buyer_email,
         subject: 'Your Credentials',
         text: `Thank you for your purchase!\n\nEmail: ${credential.email}\nPassword: ${credential.password}`
       });
-
+      await db.query('UPDATE orders SET status = ? WHERE id = ?', ['completed', matchedOrder.id]);
       await db.query('DELETE FROM orders WHERE id = ?', [matchedOrder.id]);
-      console.log('✅ Order fulfilled and deleted:', matchedBuyerId);
 
       return res.json({ success: true, message: 'Payment verified. Credentials sent.' });
     }
 
-    // 🚨 Flag the order for review
+    await db.query('INSERT INTO flagged_images (hash) VALUES (?)', [imageHash]);
     await db.query('UPDATE orders SET status = ? WHERE id = ?', ['flagged', matchedOrder.id]);
     await notifyFlagged(
       rawText,
-      `Flagged: Price match = ${priceValid}, Tag match = ${tagValid}`,
+      `Flagged: Price match = ${priceValid}, Tag match = ${tagValid}, Buyer ID Score = ${bestScore}`,
       matchedBuyerId
     );
-    console.warn('⚠️ Flagged:', { buyerId: matchedBuyerId, priceValid, tagValid });
-
     return res.json({
       success: false,
       message: 'Order flagged. Manual review required.',
       buyerId: matchedBuyerId,
-      rawText
+      rawText,
+      suspect,
+      bestScore
     });
 
   } catch (err) {
@@ -414,6 +479,7 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
     res.status(500).json({ error: 'OCR processing failed' });
   }
 });
+
 
 
 
@@ -429,6 +495,82 @@ async function notifyFlagged(ocrText, reason, buyerId = 'UNKNOWN') {
 }
 
 // Existing routes above this...
+// 📍 Get Flagged Orders
+app.get('/api/admin/orders/flagged', isAdmin, async (req, res) => {
+  try {
+    const [flaggedOrders] = await db.query(`
+      SELECT o.id, o.buyer_email, o.buyer_id, o.status, o.created_at, p.name as product_name, p.price
+      FROM orders o
+      JOIN products p ON o.product_id = p.id
+      WHERE o.status = 'flagged'
+      ORDER BY o.created_at DESC
+    `);
+    res.json(flaggedOrders);
+  } catch (err) {
+    console.error('Failed to fetch flagged orders:', err);
+    res.status(500).json({ error: 'Failed to fetch flagged orders' });
+  }
+});
+
+// 📊 Admin Stats: Total Orders & Income
+app.get('/api/admin/stats', isAdmin, async (req, res) => {
+  try {
+    const [[{ count }]] = await db.query(`SELECT COUNT(*) as count FROM orders`);
+    const [[{ income }]] = await db.query(`
+      SELECT SUM(p.price) as income
+      FROM orders o
+      JOIN products p ON o.product_id = p.id
+    `);
+    res.json({ totalOrders: count, totalIncome: income || 0 });
+  } catch (err) {
+    console.error('Failed to fetch admin stats:', err);
+    res.status(500).json({ error: 'Failed to fetch stats' });
+  }
+});
+
+// 🧼 Unflag Order (reset status)
+app.post('/api/admin/orders/:buyerId/unflag', isAdmin, async (req, res) => {
+  const buyerId = req.params.buyerId;
+  try {
+    const result = await db.query(`UPDATE orders SET status = NULL WHERE buyer_id = ?`, [buyerId]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to unflag order:', err);
+    res.status(500).json({ error: 'Failed to unflag order' });
+  }
+});
+
+// ✉️ Resend Credentials
+app.post('/api/admin/orders/:buyerId/resend', isAdmin, async (req, res) => {
+  const buyerId = req.params.buyerId;
+  try {
+    const [[order]] = await db.query(`SELECT * FROM orders WHERE buyer_id = ?`, [buyerId]);
+    if (!order) return res.status(404).json({ error: 'Order not found' });
+
+    const [creds] = await db.query(`
+      SELECT * FROM product_credentials 
+      WHERE product_id = ? AND assigned = true 
+      ORDER BY id DESC LIMIT 1
+    `, [order.product_id]);
+
+    if (!creds.length) return res.status(400).json({ error: 'No assigned credentials found' });
+
+    const credential = creds[0];
+
+    await transporter.sendMail({
+      from: process.env.SMTP_USER,
+      to: order.buyer_email,
+      subject: 'Your Credentials (Resent)',
+      text: `Hello,\n\nHere are your credentials again:\nEmail: ${credential.email}\nPassword: ${credential.password}`
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Failed to resend credentials:', err);
+    res.status(500).json({ error: 'Failed to resend credentials' });
+  }
+});
+
 
 // All middleware
 app.use(express.static('public'));
