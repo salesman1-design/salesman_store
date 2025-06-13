@@ -430,17 +430,18 @@ async function notifyFlagged(ocrText, reason, buyerId = 'UNKNOWN') {
 
 // Existing routes above this...
 
-// 🔄 UptimeRobot ping route
+// All middleware
+app.use(express.static('public'));
+app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
+
+// ✅ Add ping route here
 app.get('/ping', (req, res) => {
   res.send('pong');
 });
 
-// Static files and 404 fallback
-app.use(express.static('public'));
-app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
-
-// 🚀 Start server
+// Server start
 app.listen(PORT, () => {
   console.log(`🚗 Server is running on http://localhost:${PORT}`);
 });
+
 
