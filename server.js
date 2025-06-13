@@ -89,9 +89,10 @@ app.post('/api/orders', async (req, res) => {
         <p><strong>Time:</strong> ${timestamp}</p>
         <h3>Next Steps:</h3>
         <ol>
-          <li>Send payment to <strong>$fastfire9</strong></li>
-          <li>Include Buyer ID: <strong>${buyerId}</strong> in the note</li>
-          <li>Upload your screenshot</li>
+          <li>Your order will be accepted soon<strong>PLEASE follow all steps</strong></li>
+          <li>After your order has been accepted you will recieve the cashapp link/tag <strong>${IN THE CASHAPP description YOU NEED TO ADD THE }</strong> Buyer ID</li>
+          <li>Return back to the page and Upload your screenshot</li>
+		  <li>If you fail to add BUyer ID the order will be flagged as scam and it will be checked manually</li>
         </ol>
       `
     });
@@ -147,7 +148,7 @@ app.post('/api/admin/orders/:buyerId/accept', isAdmin, async (req, res) => {
       from: process.env.SMTP_USER,
       to: order.buyer_email,
       subject: 'Payment Instructions',
-      text: `Hello,\n\nPlease send your payment to CashApp:\n\n$fastfire9\n\nInclude your Buyer ID in the note:\n${order.buyer_id}\n\nThen upload your screenshot on the site.`
+      text: `Hello,\n\nPlease send your payment to CashApp:\n\n$shayIrl\n\nInclude your Buyer ID in the note:\n${order.buyer_id}\n\nThen upload your screenshot on the site.`
     });
 
     res.json({ success: true }); // ✅ DO NOT delete order
@@ -294,37 +295,48 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
     fs.unlink(req.file.path, () => {});
     console.log('📄 OCR Extracted Text:', JSON.stringify(rawText));
 
-    // Normalize function
-    function normalize(text) {
-      return text
-        .replace(/[^a-z0-9]/gi, '')       // remove non-alphanumerics
-        .replace(/S/g, '5')               // S → 5
-        .replace(/O/g, '0')               // O → 0
-        .replace(/I/g, '1')               // I → 1
+    // 🔧 Load tag(s) from .env (can be comma-separated)
+    const rawTags = (process.env.CASHAPP_TAG || '').split(',').map(t => t.trim()).filter(Boolean);
+
+    // Normalize helper
+    function normalize(str) {
+      return str
+        .replace(/[^a-z0-9]/gi, '')  // strip non-alphanumerics
+        .replace(/S/g, '5')
+        .replace(/s/g, '5')
+        .replace(/O/g, '0')
+        .replace(/o/g, '0')
+        .replace(/I/g, '1')
+        .replace(/l/g, '1')
         .toUpperCase();
     }
 
-    // Extract buyer ID candidates
-    const buyerIdMatches = [...rawText.matchAll(/\b[A-Z0-9]{8}\b/g)];
-    const buyerIdCandidates = buyerIdMatches.map(m => normalize(m[0]));
+    const normalizedText = normalize(rawText);
+    const normalizedTags = rawTags.map(normalize);
+    const tagValid = normalizedTags.some(tag => normalizedText.includes(tag));
+    console.log('🏷️ Normalized Tags from .env:', normalizedTags);
+    console.log('🔍 Tag Valid:', tagValid);
 
-    // Extract price
+    // 🧾 Extract Buyer ID candidates
+    const buyerIdMatches = [...rawText.matchAll(/\b[A-Z0-9]{8}\b/gi)];
+    const buyerIdCandidates = buyerIdMatches.map(m => normalize(m[0]));
+    console.log('🧾 Buyer ID Candidates:', buyerIdCandidates);
+
+    // 💵 Extract price (e.g. $5.50)
     const priceMatch = rawText.match(/[$S]?\s*(\d+(\.\d{1,2})?)/);
     const extractedPrice = priceMatch?.[1] || null;
+    console.log('💰 Extracted Price:', extractedPrice);
 
-    // CashApp tag check
-    const tagValid = /[$S][fF]astfire9/.test(rawText);
-
+    // 🔍 Try matching order by Buyer ID
     let matchedOrder = null;
     let matchedBuyerId = null;
 
-    // Try each candidate
     for (const candidate of buyerIdCandidates) {
       const [[order]] = await db.query(`
         SELECT o.*, p.price 
         FROM orders o 
         JOIN products p ON o.product_id = p.id 
-        WHERE o.buyer_id = ?
+        WHERE UPPER(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(o.buyer_id, 'S', '5'), 'O', '0'), 'I', '1'), 'l', '1'), '-', '')) = ?
       `, [candidate]);
 
       if (order) {
@@ -335,15 +347,22 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
     }
 
     if (!matchedOrder) {
-      await notifyFlagged(rawText, 'No matching Buyer ID found', buyerIdCandidates.join(', '));
-      return res.json({ success: false, message: 'Buyer ID not found', rawText });
+      console.warn('❌ No matching order for Buyer ID:', buyerIdCandidates.join(', '));
+      await notifyFlagged(rawText, 'No matching Buyer ID found', buyerIdCandidates.join(', ') || 'None');
+      return res.json({
+        success: false,
+        message: 'Buyer ID not found',
+        rawText,
+        buyerIdCandidates
+      });
     }
 
-    // Price match (within a few cents)
+    // 🎯 Price check (±0.01 tolerance)
     const priceValid =
       extractedPrice &&
       Math.abs(parseFloat(extractedPrice) - parseFloat(matchedOrder.price)) < 0.01;
 
+    // 🎁 Deliver credentials if valid
     if (priceValid && tagValid) {
       const [creds] = await db.query(`
         SELECT * FROM product_credentials 
@@ -351,6 +370,7 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
       `, [matchedOrder.product_id]);
 
       if (!creds.length) {
+        console.warn('❌ No credentials available');
         return res.status(400).json({ error: 'No credentials available' });
       }
 
@@ -361,22 +381,39 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
         from: process.env.SMTP_USER,
         to: matchedOrder.buyer_email,
         subject: 'Your Credentials',
-        text: `Email: ${credential.email}\nPassword: ${credential.password}`
+        text: `Thank you for your purchase!\n\nEmail: ${credential.email}\nPassword: ${credential.password}`
       });
 
       await db.query('DELETE FROM orders WHERE id = ?', [matchedOrder.id]);
+      console.log('✅ Order fulfilled and deleted:', matchedBuyerId);
 
       return res.json({ success: true, message: 'Payment verified. Credentials sent.' });
-    } else {
-      await db.query('UPDATE orders SET status = ? WHERE id = ?', ['flagged', matchedOrder.id]);
-      await notifyFlagged(rawText, `Flagged: Price match: ${priceValid}, Tag match: ${tagValid}`, matchedBuyerId);
-      return res.json({ success: false, message: 'Order flagged. Manual review required.', buyerId: matchedBuyerId });
     }
+
+    // 🚨 Flag the order for review
+    await db.query('UPDATE orders SET status = ? WHERE id = ?', ['flagged', matchedOrder.id]);
+    await notifyFlagged(
+      rawText,
+      `Flagged: Price match = ${priceValid}, Tag match = ${tagValid}`,
+      matchedBuyerId
+    );
+    console.warn('⚠️ Flagged:', { buyerId: matchedBuyerId, priceValid, tagValid });
+
+    return res.json({
+      success: false,
+      message: 'Order flagged. Manual review required.',
+      buyerId: matchedBuyerId,
+      rawText
+    });
+
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'OCR failed' });
+    console.error('❌ OCR Error:', err);
+    res.status(500).json({ error: 'OCR processing failed' });
   }
 });
+
+
+
 
 
 async function notifyFlagged(ocrText, reason, buyerId = 'UNKNOWN') {
