@@ -90,7 +90,7 @@ app.post('/api/orders', async (req, res) => {
         <h3>Next Steps:</h3>
         <ol>
           <li>Your order will be accepted soon<strong>PLEASE follow all steps</strong></li>
-          <li>After your order has been accepted you will recieve the cashapp link/tag <strong>${IN THE CASHAPP description YOU NEED TO ADD THE }</strong> Buyer ID</li>
+          <li>After your order has been accepted you will receive the CashApp tag. <strong>In the CashApp note, include your Buyer ID: ${buyerId}</strong></li>
           <li>Return back to the page and Upload your screenshot</li>
 		  <li>If you fail to add BUyer ID the order will be flagged as scam and it will be checked manually</li>
         </ol>
