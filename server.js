@@ -89,11 +89,14 @@ app.post('/api/orders', async (req, res) => {
         <p><strong>Time:</strong> ${timestamp}</p>
         <h3>Next Steps:</h3>
         <ol>
-          <li>Your order will be accepted soon<strong>PLEASE follow all steps</strong></li>
-          <li>After your order has been accepted you will receive the CashApp tag. <strong>In the CashApp note, include your Buyer ID: ${buyerId}</strong></li>
-          <li>Return back to the page and Upload your screenshot</li>
-		  <li>If you fail to add BUyer ID the order will be flagged as scam and it will be checked manually</li>
-        </ol>
+		  <li>✅ Your order will be accepted soon <strong>— PLEASE follow all steps</strong></li>
+		  <li>💸 After your order has been accepted, you will receive the CashApp tag. <strong>In the CashApp note, include your Buyer ID: ${buyerId}</strong></li>
+		  <li>📸 Return to the page and upload your payment screenshot</li>
+		  <li>⚠️ If you fail to add the Buyer ID, the order will be flagged as a scam and reviewed manually</li>
+		  <li>🚫 <strong>IMPORTANT:</strong> The email you receive is <u>not yours to keep</u>. If you're unable to remove the vehicle from it, contact 📱 <strong>@salesman_empire</strong> on Instagram or email 📧 <strong>fastfire978@gmail.com</strong></li>
+		</ol>
+
+
       `
     });
 
