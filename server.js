@@ -428,9 +428,19 @@ async function notifyFlagged(ocrText, reason, buyerId = 'UNKNOWN') {
   });
 }
 
+// Existing routes above this...
+
+// 🔄 UptimeRobot ping route
+app.get('/ping', (req, res) => {
+  res.send('pong');
+});
+
+// Static files and 404 fallback
 app.use(express.static('public'));
 app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
 
+// 🚀 Start server
 app.listen(PORT, () => {
   console.log(`🚗 Server is running on http://localhost:${PORT}`);
 });
+
