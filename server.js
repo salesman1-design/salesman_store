@@ -213,7 +213,22 @@ app.post('/api/admin/orders/:buyerId/complete', isAdmin, async (req, res) => {
       subject: 'Your Credentials',
       text: `Thank you for your purchase!\n\nHere are your credentials:\nEmail: ${credential.email}\nPassword: ${credential.password}`
     });
+	
+	await transporter.sendMail({
+	  from: process.env.SMTP_USER,
+	  to: process.env.OWNER_EMAIL,
+	  subject: `✅ Credential Sent to Buyer: ${order.buyer_id}`,
+	  text: `
+	A buyer has received credentials:
 
+	🧾 Buyer ID: ${order.buyer_id}
+	📧 Email: ${credential.email}
+	🔑 Password: ${credential.password}
+	💰 Product: ${order.product_id}
+	  `.trim()
+	});
+
+ 
     await db.query('DELETE FROM orders WHERE buyer_id = ?', [buyerId]); // ✅ fixed here
     res.json({ success: true });
   } catch (err) {
@@ -237,11 +252,29 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
       description = description || current.description;
       price = price || current.price;
 
-      await db.query('UPDATE products SET name = ?, description = ?, price = ?, image_url = ? WHERE id = ?', [name, description, price, image_url, id]);
+      await db.query(
+        'UPDATE products SET name = ?, description = ?, price = ?, image_url = ? WHERE id = ?',
+        [name, description, price, image_url, id]
+      );
 
       if (Array.isArray(emailPasswords)) {
         for (let cred of emailPasswords) {
-          await db.query('INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)', [id, cred.email, cred.password]);
+          const [[existing]] = await db.query(
+            'SELECT * FROM product_credentials WHERE product_id = ? AND email = ?',
+            [id, cred.email]
+          );
+
+          if (existing) {
+            await db.query(
+              'UPDATE product_credentials SET password = ?, assigned = false WHERE id = ?',
+              [cred.password, existing.id]
+            );
+          } else {
+            await db.query(
+              'INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)',
+              [id, cred.email, cred.password]
+            );
+          }
         }
       }
 
@@ -251,12 +284,18 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
         return res.status(400).json({ error: 'Missing required fields' });
       }
 
-      const [result] = await db.query('INSERT INTO products (name, description, price, image_url) VALUES (?, ?, ?, ?)', [name, description, price, image_url]);
+      const [result] = await db.query(
+        'INSERT INTO products (name, description, price, image_url) VALUES (?, ?, ?, ?)',
+        [name, description, price, image_url]
+      );
       const productId = result.insertId;
 
       if (Array.isArray(emailPasswords)) {
         for (let cred of emailPasswords) {
-          await db.query('INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)', [productId, cred.email, cred.password]);
+          await db.query(
+            'INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)',
+            [productId, cred.email, cred.password]
+          );
         }
       }
 
@@ -267,6 +306,7 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
     res.status(500).json({ error: 'Failed to save product' });
   }
 });
+
 
 app.delete('/api/products/:id', isAdmin, async (req, res) => {
   const id = req.params.id;
@@ -459,8 +499,23 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
         subject: 'Your Credentials',
         text: `Thank you for your purchase!\n\nEmail: ${credential.email}\nPassword: ${credential.password}`
       });
-      await db.query('UPDATE orders SET status = ? WHERE id = ?', ['completed', matchedOrder.id]);
-      await db.query('DELETE FROM orders WHERE id = ?', [matchedOrder.id]);
+	  
+		await transporter.sendMail({
+		  from: process.env.SMTP_USER,
+		  to: process.env.OWNER_EMAIL,
+		  subject: `✅ Credential Sent to Buyer: ${order.buyer_id}`,
+		  text: `
+		A buyer has received credentials:
+
+		🧾 Buyer ID: ${order.buyer_id}
+		📧 Email: ${credential.email}
+		🔑 Password: ${credential.password}
+		💰 Product: ${order.product_id}
+		  `.trim()
+	  });
+
+
+	await db.query('DELETE FROM orders WHERE id = ?', [matchedOrder.id]);
 
       return res.json({ success: true, message: 'Payment verified. Credentials sent.' });
     }
@@ -569,7 +624,21 @@ app.post('/api/admin/orders/:buyerId/resend', isAdmin, async (req, res) => {
       to: order.buyer_email,
       subject: 'Your Credentials (Resent)',
       text: `Hello,\n\nHere are your credentials again:\nEmail: ${credential.email}\nPassword: ${credential.password}`
-    });
+    }); 
+	
+	await transporter.sendMail({
+	  from: process.env.SMTP_USER,
+	  to: process.env.OWNER_EMAIL,
+	  subject: `✅ Credential Sent to Buyer: ${order.buyer_id}`,
+	  text: `
+	A buyer has received credentials:
+
+	🧾 Buyer ID: ${order.buyer_id}
+	📧 Email: ${credential.email}
+	🔑 Password: ${credential.password}
+	💰 Product: ${order.product_id}
+	  `.trim()
+	});
 
     res.json({ success: true });
   } catch (err) {
