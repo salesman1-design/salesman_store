@@ -2,113 +2,109 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Music Player</title>
   <style>
     body {
       font-family: sans-serif;
       background: #111;
       color: #fff;
-      padding: 2rem;
-      text-align: center;
+      margin: 0;
+      padding: 20px;
     }
-    audio {
+    h2 {
+      margin-top: 0;
+    }
+    #controls {
+      margin-top: 10px;
+    }
+    button, select, input[type="range"] {
+      margin-bottom: 10px;
+      font-size: 14px;
+    }
+    input[type="range"] {
       width: 100%;
-      margin-top: 1rem;
-    }
-    #playlist {
-      list-style: none;
-      padding: 0;
-      margin-top: 1rem;
-    }
-    #playlist li {
-      cursor: pointer;
-      padding: 8px;
-      background: #222;
-      margin-bottom: 4px;
-      border-radius: 5px;
-    }
-    #playlist li.active {
-      background: #444;
-      font-weight: bold;
-    }
-    button {
-      margin: 0.5rem;
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
-      cursor: pointer;
-    }
-    input[type="number"] {
-      width: 100px;
-      padding: 5px;
-      margin: 0.5rem;
     }
   </style>
 </head>
 <body>
+  <h2>🎵 Music Player</h2>
+  <label for="track-select">Choose Track:</label>
+  <select id="track-select">
+    <option value="https://files.catbox.moe/u5e4te.mp3">Track 1</option>
+    <option value="https://files.catbox.moe/rpu9ir.mp3">Track 2</option>
+    <option value="https://files.catbox.moe/6z47pi.mp3">Track 3</option>
+  </select>
 
-  <h2>🎧 Music Player</h2>
-  <div id="now-playing">Select a track below to begin</div>
-  <audio id="audio" controls></audio>
-
-  <div>
-    <button id="prevBtn">⏮️ Prev</button>
-    <button id="nextBtn">⏭️ Next</button>
+  <div id="controls">
+    <button id="play">▶️ Play</button>
+    <button id="pause">⏸️ Pause</button>
+    <button id="skip">⏭️ Skip 10s</button>
+    <label for="volume">🔊 Volume</label>
+    <input type="range" id="volume" min="0" max="1" step="0.01" />
+    <label for="seek">⏩ Seek</label>
+    <input type="range" id="seek" value="0" min="0" max="100" />
   </div>
 
-  <div>
-    <input type="number" id="seekTime" placeholder="Seconds" />
-    <button onclick="seek()">⏩ Seek</button>
-  </div>
-
-  <ul id="playlist">
-    <li data-src="https://files.catbox.moe/u5e4te.mp3">🎵 Track 1</li>
-    <li data-src="https://files.catbox.moe/rpu9ir.mp3">🎵 Track 2</li>
-    <li data-src="https://files.catbox.moe/6z47pi.mp3">🎵 Track 3</li>
-  </ul>
+  <audio id="audio" preload="auto"></audio>
 
   <script>
     const audio = document.getElementById('audio');
-    const playlist = document.getElementById('playlist');
-    const nowPlaying = document.getElementById('now-playing');
-    const tracks = Array.from(playlist.querySelectorAll('li'));
-    let currentIndex = -1;
+    const playBtn = document.getElementById('play');
+    const pauseBtn = document.getElementById('pause');
+    const skipBtn = document.getElementById('skip');
+    const seek = document.getElementById('seek');
+    const volume = document.getElementById('volume');
+    const trackSelect = document.getElementById('track-select');
 
-    function playTrack(index) {
-      if (index >= 0 && index < tracks.length) {
-        tracks.forEach(t => t.classList.remove('active'));
-        const track = tracks[index];
-        track.classList.add('active');
-        audio.src = track.dataset.src;
-        audio.play();
-        nowPlaying.textContent = 'Now Playing: ' + track.textContent;
-        currentIndex = index;
-      }
+    // Restore saved track and volume
+    const savedTrack = localStorage.getItem('music-track');
+    const savedVolume = localStorage.getItem('music-volume');
+    if (savedTrack) {
+      audio.src = savedTrack;
+      trackSelect.value = savedTrack;
+    } else {
+      audio.src = trackSelect.value;
     }
 
-    playlist.addEventListener('click', e => {
-      if (e.target.tagName === 'LI') {
-        const index = tracks.indexOf(e.target);
-        playTrack(index);
-      }
+    audio.volume = savedVolume ? parseFloat(savedVolume) : 0.5;
+    volume.value = audio.volume;
+
+    // Start playback on load
+    audio.autoplay = true;
+
+    // Playback controls
+    playBtn.onclick = () => audio.play();
+    pauseBtn.onclick = () => audio.pause();
+    skipBtn.onclick = () => (audio.currentTime += 10);
+
+    // Volume
+    volume.addEventListener('input', () => {
+      audio.volume = parseFloat(volume.value);
+      localStorage.setItem('music-volume', volume.value);
     });
 
-    document.getElementById('prevBtn').addEventListener('click', () => {
-      playTrack((currentIndex - 1 + tracks.length) % tracks.length);
+    // Seek
+    audio.addEventListener('timeupdate', () => {
+      seek.value = (audio.currentTime / audio.duration) * 100 || 0;
+    });
+    seek.addEventListener('input', () => {
+      audio.currentTime = (seek.value / 100) * audio.duration;
     });
 
-    document.getElementById('nextBtn').addEventListener('click', () => {
-      playTrack((currentIndex + 1) % tracks.length);
-    });
+    // Change tracks
+    trackSelect.onchange = () => {
+      const newTrack = trackSelect.value;
+      localStorage.setItem('music-track', newTrack);
+      audio.src = newTrack;
+      audio.play();
+    };
 
-    audio.addEventListener('ended', () => {
-      playTrack((currentIndex + 1) % tracks.length);
+    // Play when ready (especially on first load)
+    audio.addEventListener('canplay', () => {
+      audio.play().catch(() => {});
     });
-
-    function seek() {
-      const time = parseFloat(document.getElementById('seekTime').value);
-      if (!isNaN(time)) audio.currentTime = time;
-    }
   </script>
-
 </body>
 </html>
+

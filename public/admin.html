@@ -10,7 +10,7 @@
 <body>
   <header>
     <h1>Admin Panel</h1>
-	<button class="admin-btn" onclick="window.location.href='player.html'">🎵 Go to Music Player</button>
+    <button class="admin-btn" id="open-music-btn">🎵 Open Music Player</button>
     <button id="logout-btn">Logout</button>
   </header>
 
@@ -89,5 +89,16 @@
   <div id="admin-notification" class="hidden"></div>
 
   <script src="main.js"></script>
+  <script>
+    // 🎵 Music player popup logic
+    let musicWindow;
+    document.getElementById('open-music-btn')?.addEventListener('click', () => {
+      if (!musicWindow || musicWindow.closed) {
+        musicWindow = window.open('/player.html', 'musicPlayer', 'width=400,height=120');
+      } else {
+        musicWindow.focus();
+      }
+    });
+  </script>
 </body>
 </html>
