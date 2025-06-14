@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Music Player</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #111;
+      color: #fff;
+      padding: 2rem;
+      text-align: center;
+    }
+    audio {
+      width: 100%;
+      margin-top: 1rem;
+    }
+    #playlist {
+      list-style: none;
+      padding: 0;
+      margin-top: 1rem;
+    }
+    #playlist li {
+      cursor: pointer;
+      padding: 8px;
+      background: #222;
+      margin-bottom: 4px;
+      border-radius: 5px;
+    }
+    #playlist li.active {
+      background: #444;
+      font-weight: bold;
+    }
+    button {
+      margin: 0.5rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    input[type="number"] {
+      width: 100px;
+      padding: 5px;
+      margin: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>🎧 Music Player</h2>
+  <div id="now-playing">Select a track below to begin</div>
+  <audio id="audio" controls></audio>
+
+  <div>
+    <button id="prevBtn">⏮️ Prev</button>
+    <button id="nextBtn">⏭️ Next</button>
+  </div>
+
+  <div>
+    <input type="number" id="seekTime" placeholder="Seconds" />
+    <button onclick="seek()">⏩ Seek</button>
+  </div>
+
+  <ul id="playlist">
+    <li data-src="https://files.catbox.moe/u5e4te.mp3">🎵 Track 1</li>
+    <li data-src="https://files.catbox.moe/rpu9ir.mp3">🎵 Track 2</li>
+    <li data-src="https://files.catbox.moe/6z47pi.mp3">🎵 Track 3</li>
+  </ul>
+
+  <script>
+    const audio = document.getElementById('audio');
+    const playlist = document.getElementById('playlist');
+    const nowPlaying = document.getElementById('now-playing');
+    const tracks = Array.from(playlist.querySelectorAll('li'));
+    let currentIndex = -1;
+
+    function playTrack(index) {
+      if (index >= 0 && index < tracks.length) {
+        tracks.forEach(t => t.classList.remove('active'));
+        const track = tracks[index];
+        track.classList.add('active');
+        audio.src = track.dataset.src;
+        audio.play();
+        nowPlaying.textContent = 'Now Playing: ' + track.textContent;
+        currentIndex = index;
+      }
+    }
+
+    playlist.addEventListener('click', e => {
+      if (e.target.tagName === 'LI') {
+        const index = tracks.indexOf(e.target);
+        playTrack(index);
+      }
+    });
+
+    document.getElementById('prevBtn').addEventListener('click', () => {
+      playTrack((currentIndex - 1 + tracks.length) % tracks.length);
+    });
+
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      playTrack((currentIndex + 1) % tracks.length);
+    });
+
+    audio.addEventListener('ended', () => {
+      playTrack((currentIndex + 1) % tracks.length);
+    });
+
+    function seek() {
+      const time = parseFloat(document.getElementById('seekTime').value);
+      if (!isNaN(time)) audio.currentTime = time;
+    }
+  </script>
+
+</body>
+</html>

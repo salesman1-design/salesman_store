@@ -345,94 +345,116 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // === ADD PRODUCT PAGE LOGIC ===
 
+else if (pathname.includes('addproduct.html')) {
+  const form = el('product-form');
+  const backBtn = el('back-btn');
 
-  else if (pathname.includes('addproduct.html')) {
-    const form = el('product-form');
-    const backBtn = el('back-btn');
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
 
-    const params = new URLSearchParams(window.location.search);
-    const id = params.get('id');
-    if (id) {
-      fetch(`/api/admin/product/${id}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data) {
-            el('product-id').value = data.id;
-            el('name').value = data.name;
-            el('description').value = data.description;
-            el('price').value = data.price;
-            el('image_url').value = data.image_url || data.image || '';
-            if (data.credentials && data.credentials.length > 0) {
-              el('email1').value = data.credentials[0]?.email || '';
-              el('password1').value = data.credentials[0]?.password || '';
-              el('email2').value = data.credentials[1]?.email || '';
-              el('password2').value = data.credentials[1]?.password || '';
+  if (id) {
+    fetch(`/api/admin/product/${id}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data) {
+          el('product-id').value = data.id;
+          el('name').value = data.name;
+          el('description').value = data.description;
+          el('price').value = data.price;
+          el('image_url').value = data.image_url || data.image || '';
+
+          if (data.credentials && data.credentials.length > 0) {
+            el('email1').value = data.credentials[0]?.email || '';
+            el('password1').value = data.credentials[0]?.password || '';
+            el('email2').value = data.credentials[1]?.email || '';
+            el('password2').value = data.credentials[1]?.password || '';
+
+            if (data.credentials[0]?.assigned) {
+              const btn1 = document.createElement('button');
+              btn1.textContent = '🔁 Reset';
+              btn1.type = 'button';
+              btn1.onclick = async () => {
+                await fetch(`/api/admin/credentials/${data.credentials[0].id}/reset`, { method: 'POST' });
+                window.location.reload();
+              };
+              el('password1').after(btn1);
+            }
+
+            if (data.credentials[1]?.assigned) {
+              const btn2 = document.createElement('button');
+              btn2.textContent = '🔁 Reset';
+              btn2.type = 'button';
+              btn2.onclick = async () => {
+                await fetch(`/api/admin/credentials/${data.credentials[1].id}/reset`, { method: 'POST' });
+                window.location.reload();
+              };
+              el('password2').after(btn2);
             }
           }
-        });
-    }
-
-    form?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const emailPasswords = [];
-      if (el('email1').value && el('password1').value) {
-        emailPasswords.push({ email: el('email1').value, password: el('password1').value });
-      }
-      if (el('email2').value && el('password2').value) {
-        emailPasswords.push({ email: el('email2').value, password: el('password2').value });
-      }
-
-      const payload = {
-        id: el('product-id').value || null,
-        name: el('name').value.trim(),
-        description: el('description').value.trim(),
-        price: parseFloat(el('price').value),
-        image_url: el('image_url').value.trim(),
-        emailPasswords
-      };
-
-      console.log('Sending product:', payload);
-
-      try {
-        const res = await fetch('/api/admin/products', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        if (res.ok) {
-          alert('Product saved!');
-          window.location.href = '/admin.html';
-        } else {
-          alert('Failed to save product');
         }
-      } catch {
-        alert('Network error');
-      }
-    });
+      });
+  }
 
-    backBtn?.addEventListener('click', () => {
-      window.location.href = '/admin.html';
-    });
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-    function generateRandomPassword(length = 10) {
-      const charset = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$_';
-      let pass = '';
-      for (let i = 0; i < length; i++) {
-        pass += charset.charAt(Math.floor(Math.random() * charset.length));
-      }
-      return pass;
+    const emailPasswords = [];
+    if (el('email1').value && el('password1').value) {
+      emailPasswords.push({ email: el('email1').value, password: el('password1').value });
+    }
+    if (el('email2').value && el('password2').value) {
+      emailPasswords.push({ email: el('email2').value, password: el('password2').value });
     }
 
-    el('regen-pass1')?.addEventListener('click', () => {
-      el('password1').value = generateRandomPassword();
-    });
+    const payload = {
+      id: el('product-id').value || null,
+      name: el('name').value.trim(),
+      description: el('description').value.trim(),
+      price: parseFloat(el('price').value),
+      image_url: el('image_url').value.trim(),
+      emailPasswords
+    };
 
-    el('regen-pass2')?.addEventListener('click', () => {
-      el('password2').value = generateRandomPassword();
-    });
-  } // closes if (pathname.includes...)
+    console.log('Sending product:', payload);
 
-}); // ✅ closes DOMContentLoaded
+    try {
+      const res = await fetch('/api/admin/products', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
+      if (res.ok) {
+        alert('Product saved!');
+        window.location.href = '/admin.html';
+      } else {
+        alert('Failed to save product');
+      }
+    } catch {
+      alert('Network error');
+    }
+  });
+
+  backBtn?.addEventListener('click', () => {
+    window.location.href = '/admin.html';
+  });
+
+  function generateRandomPassword(length = 10) {
+    const charset = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$_';
+    let pass = '';
+    for (let i = 0; i < length; i++) {
+      pass += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return pass;
+  }
+
+  el('regen-pass1')?.addEventListener('click', () => {
+    el('password1').value = generateRandomPassword();
+  });
+
+  el('regen-pass2')?.addEventListener('click', () => {
+    el('password2').value = generateRandomPassword();
+  });
+  
+} // ← Closes the `if (pathname.includes(...))` block
+}); // ✅ FIXED: Closes DOMContentLoaded properly

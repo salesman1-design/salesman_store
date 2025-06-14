@@ -19,12 +19,14 @@
   "dependencies": {
     "dayjs": "^1.11.13",
     "dotenv": "^16.5.0",
+    "exif-parser": "^0.1.12",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
     "fuzzball": "^2.2.2",
     "multer": "^2.0.1",
     "mysql2": "^3.14.1",
     "nodemailer": "^6.10.1",
+    "sharp": "^0.34.2",
     "tesseract.js": "^6.0.1"
   },
   "devDependencies": {

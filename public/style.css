@@ -254,3 +254,16 @@ header.site-header {
     padding: 1.2rem;
   }
 }
+.admin-btn {
+  margin: 0.5rem;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  background-color: #222;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.admin-btn:hover {
+  background-color: #444;
+}
