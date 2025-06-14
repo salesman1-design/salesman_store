@@ -283,10 +283,17 @@ app.delete('/api/products/:id', isAdmin, async (req, res) => {
 app.get('/api/admin/product/:id', isAdmin, async (req, res) => {
   const id = req.params.id;
   try {
-    const [[product]] = await db.query('SELECT * FROM products WHERE id = ?', [id]);
+    const [[product]] = await db.query(
+      'SELECT id, name, description, price, image_url FROM products WHERE id = ?',
+      [id]
+    );
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
-    const [credentials] = await db.query('SELECT id, email, password FROM product_credentials WHERE product_id = ?', [id]);
+    const [credentials] = await db.query(
+      'SELECT email, password FROM product_credentials WHERE product_id = ? AND assigned = false',
+      [id]
+    );
+
     res.json({ ...product, credentials });
   } catch (err) {
     console.error(err);

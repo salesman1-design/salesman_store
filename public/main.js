@@ -344,6 +344,8 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // === ADD PRODUCT PAGE LOGIC ===
+
+
   else if (pathname.includes('addproduct.html')) {
     const form = el('product-form');
     const backBtn = el('back-btn');
@@ -381,16 +383,16 @@ document.addEventListener('DOMContentLoaded', () => {
         emailPasswords.push({ email: el('email2').value, password: el('password2').value });
       }
 
-		const payload = {
-		  id: el('product-id').value || null,
-		  name: el('name').value.trim(),
-		  description: el('description').value.trim(),
-		  price: parseFloat(el('price').value),        // FIX: Ensure price is a number
-		  image_url: el('image_url').value.trim(),     // FIX: Ensure image_url is passed
-		  emailPasswords
-		};
+      const payload = {
+        id: el('product-id').value || null,
+        name: el('name').value.trim(),
+        description: el('description').value.trim(),
+        price: parseFloat(el('price').value),
+        image_url: el('image_url').value.trim(),
+        emailPasswords
+      };
 
-		console.log('Sending product:', payload);
+      console.log('Sending product:', payload);
 
       try {
         const res = await fetch('/api/admin/products', {
@@ -413,6 +415,24 @@ document.addEventListener('DOMContentLoaded', () => {
     backBtn?.addEventListener('click', () => {
       window.location.href = '/admin.html';
     });
-  }
-});
+
+    function generateRandomPassword(length = 10) {
+      const charset = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$_';
+      let pass = '';
+      for (let i = 0; i < length; i++) {
+        pass += charset.charAt(Math.floor(Math.random() * charset.length));
+      }
+      return pass;
+    }
+
+    el('regen-pass1')?.addEventListener('click', () => {
+      el('password1').value = generateRandomPassword();
+    });
+
+    el('regen-pass2')?.addEventListener('click', () => {
+      el('password2').value = generateRandomPassword();
+    });
+  } // closes if (pathname.includes...)
+
+}); // ✅ closes DOMContentLoaded
 
