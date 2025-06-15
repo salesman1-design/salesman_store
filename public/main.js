@@ -415,7 +415,7 @@ else if (pathname.includes('addproduct.html')) {
       emailPasswords
     };
 
-    console.log('Sending product:', payload);
+	console.log('Sending product:', payload);  // ✅ Safe now
 
     try {
       const res = await fetch('/api/admin/products', {

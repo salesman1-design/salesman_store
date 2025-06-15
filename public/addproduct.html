@@ -48,5 +48,13 @@
   </form>
 
   <script src="main.js" defer></script>
+  
+    <script>
+    // ✅ Trigger autoplay on first user interaction
+    window.addEventListener('click', () => {
+      const iframe = document.getElementById('bg-music-player');
+      iframe?.contentWindow?.postMessage('start-music', '*');
+    }, { once: true });
+  </script>
 </body>
 </html>

@@ -245,6 +245,15 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
   let { id, name, description, price, image, image_url, emailPasswords } = req.body;
   image_url = image_url || image || '';
 
+  function generateRandomPassword(length = 10) {
+    const charset = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$_';
+    let pass = '';
+    for (let i = 0; i < length; i++) {
+      pass += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return pass;
+  }
+
   try {
     if (id) {
       const [[current]] = await db.query('SELECT * FROM products WHERE id = ?', [id]);
@@ -268,7 +277,7 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
 
           if (existing) {
             await db.query(
-              'UPDATE product_credentials SET password = ? WHERE id = ?',
+              'UPDATE product_credentials SET password = ?, assigned = false WHERE id = ?',
               [cred.password, existing.id]
             );
           } else {
@@ -292,13 +301,34 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
       );
       const productId = result.insertId;
 
-      if (Array.isArray(emailPasswords)) {
-        for (let cred of emailPasswords) {
-          await db.query(
-            'INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)',
-            [productId, cred.email, cred.password]
-          );
-        }
+      // ✅ Auto-generate 2 default credentials in correct alias format
+      if (!Array.isArray(emailPasswords) || emailPasswords.length === 0) {
+        const [[{ maxAlias } = { maxAlias: 0 }]] = await db.query(`
+          SELECT MAX(CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(email, '+', -1), '@', 1) AS UNSIGNED)) AS maxAlias
+          FROM product_credentials
+          WHERE email LIKE 'salesmanempiremain+%@gmail.com'
+        `);
+
+        const next1 = (maxAlias || 0) + 1;
+        const next2 = next1 + 1;
+
+        emailPasswords = [
+          {
+            email: `salesmanempiremain+${String(next1).padStart(3, '0')}@gmail.com`,
+            password: generateRandomPassword()
+          },
+          {
+            email: `salesmanempiremain+${String(next2).padStart(3, '0')}@gmail.com`,
+            password: generateRandomPassword()
+          }
+        ];
+      }
+
+      for (let cred of emailPasswords) {
+        await db.query(
+          'INSERT INTO product_credentials (product_id, email, password, assigned) VALUES (?, ?, ?, false)',
+          [productId, cred.email, cred.password]
+        );
       }
 
       return res.json({ success: true, productId });
@@ -306,36 +336,6 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to save product' });
-  }
-});
-
-// ✅ NEW: Reset a credential by ID (admin only)
-app.post('/api/admin/credentials/:id/reset', isAdmin, async (req, res) => {
-  const credId = req.params.id;
-  try {
-    await db.query('UPDATE product_credentials SET assigned = false WHERE id = ?', [credId]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Reset Credential Error:', err);
-    res.status(500).json({ error: 'Failed to reset credential' });
-  }
-});
-
-// ✅ Serve frontend reset page buttons
-app.get('/api/admin/product/:id', isAdmin, async (req, res) => {
-  const id = req.params.id;
-  try {
-    const [[product]] = await db.query('SELECT * FROM products WHERE id = ?', [id]);
-    if (!product) return res.status(404).json({ error: 'Product not found' });
-
-    const [credentials] = await db.query(
-      'SELECT id, email, password, assigned FROM product_credentials WHERE product_id = ?',
-      [id]
-    );
-    res.json({ ...product, credentials });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to fetch product' });
   }
 });
 
