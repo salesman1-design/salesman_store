@@ -1,110 +1,99 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Music Player</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      background: #111;
-      color: #fff;
-      margin: 0;
-      padding: 20px;
-    }
-    h2 {
-      margin-top: 0;
-    }
-    #controls {
-      margin-top: 10px;
-    }
-    button, select, input[type="range"] {
-      margin-bottom: 10px;
-      font-size: 14px;
-    }
-    input[type="range"] {
-      width: 100%;
-    }
-  </style>
+  <title>Background Music Player</title>
 </head>
-<body>
+<body style="background: #111; color: white; font-family: sans-serif; padding: 20px;">
   <h2>🎵 Music Player</h2>
-  <label for="track-select">Choose Track:</label>
-  <select id="track-select">
+
+  <select id="track-selector">
     <option value="https://files.catbox.moe/u5e4te.mp3">Track 1</option>
     <option value="https://files.catbox.moe/rpu9ir.mp3">Track 2</option>
     <option value="https://files.catbox.moe/6z47pi.mp3">Track 3</option>
   </select>
+  <br><br>
 
-  <div id="controls">
-    <button id="play">▶️ Play</button>
-    <button id="pause">⏸️ Pause</button>
-    <button id="skip">⏭️ Skip 10s</button>
-    <label for="volume">🔊 Volume</label>
-    <input type="range" id="volume" min="0" max="1" step="0.01" />
-    <label for="seek">⏩ Seek</label>
-    <input type="range" id="seek" value="0" min="0" max="100" />
-  </div>
+  <button id="play-btn">▶️ Play</button>
+  <button id="pause-btn">⏸️ Pause</button>
+  <input type="range" id="volume" min="0" max="1" step="0.01" value="0.5" />
+  <span id="status">Idle</span>
 
-  <audio id="audio" preload="auto"></audio>
+  <audio id="audio" controls style="width:100%; margin-top:20px;" loop></audio>
 
   <script>
     const audio = document.getElementById('audio');
-    const playBtn = document.getElementById('play');
-    const pauseBtn = document.getElementById('pause');
-    const skipBtn = document.getElementById('skip');
-    const seek = document.getElementById('seek');
+    const selector = document.getElementById('track-selector');
+    const status = document.getElementById('status');
     const volume = document.getElementById('volume');
-    const trackSelect = document.getElementById('track-select');
 
-    // Restore saved track and volume
-    const savedTrack = localStorage.getItem('music-track');
-    const savedVolume = localStorage.getItem('music-volume');
-    if (savedTrack) {
-      audio.src = savedTrack;
-      trackSelect.value = savedTrack;
+    // Load saved state
+    const savedSrc = localStorage.getItem('bgmusic-src');
+    const savedTime = parseFloat(localStorage.getItem('bgmusic-time')) || 0;
+    const savedVol = parseFloat(localStorage.getItem('bgmusic-vol')) || 0.5;
+    const wasPlaying = localStorage.getItem('bgmusic-playing') === 'true';
+
+    if (savedSrc) {
+      selector.value = savedSrc;
+      audio.src = savedSrc;
     } else {
-      audio.src = trackSelect.value;
+      audio.src = selector.value;
     }
 
-    audio.volume = savedVolume ? parseFloat(savedVolume) : 0.5;
-    volume.value = audio.volume;
+    audio.volume = savedVol;
+    volume.value = savedVol;
 
-    // Start playback on load
-    audio.autoplay = true;
-
-    // Playback controls
-    playBtn.onclick = () => audio.play();
-    pauseBtn.onclick = () => audio.pause();
-    skipBtn.onclick = () => (audio.currentTime += 10);
-
-    // Volume
-    volume.addEventListener('input', () => {
-      audio.volume = parseFloat(volume.value);
-      localStorage.setItem('music-volume', volume.value);
+    audio.addEventListener('loadedmetadata', () => {
+      if (savedTime < audio.duration) {
+        audio.currentTime = savedTime;
+      }
+      if (wasPlaying) {
+        audio.play().catch(() => {});
+      }
     });
 
-    // Seek
-    audio.addEventListener('timeupdate', () => {
-      seek.value = (audio.currentTime / audio.duration) * 100 || 0;
-    });
-    seek.addEventListener('input', () => {
-      audio.currentTime = (seek.value / 100) * audio.duration;
-    });
-
-    // Change tracks
-    trackSelect.onchange = () => {
-      const newTrack = trackSelect.value;
-      localStorage.setItem('music-track', newTrack);
-      audio.src = newTrack;
+    selector.addEventListener('change', () => {
+      const selected = selector.value;
+      audio.src = selected;
+      localStorage.setItem('bgmusic-src', selected);
+      localStorage.setItem('bgmusic-time', 0);
       audio.play();
-    };
+    });
 
-    // Play when ready (especially on first load)
-    audio.addEventListener('canplay', () => {
-      audio.play().catch(() => {});
+    document.getElementById('play-btn').addEventListener('click', () => {
+      audio.play();
+    });
+
+    document.getElementById('pause-btn').addEventListener('click', () => {
+      audio.pause();
+    });
+
+    audio.addEventListener('play', () => {
+      status.textContent = 'Playing';
+      localStorage.setItem('bgmusic-playing', 'true');
+      localStorage.setItem('bgmusic-src', audio.src);
+    });
+
+    audio.addEventListener('pause', () => {
+      status.textContent = 'Paused';
+      localStorage.setItem('bgmusic-playing', 'false');
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      localStorage.setItem('bgmusic-time', audio.currentTime);
+    });
+
+    volume.addEventListener('input', () => {
+      audio.volume = volume.value;
+      localStorage.setItem('bgmusic-vol', volume.value);
+    });
+
+    // Allow iframe trigger
+    window.addEventListener('message', (e) => {
+      if (e.data === 'start-music') {
+        audio.play().catch(() => {});
+      }
     });
   </script>
 </body>
 </html>
-

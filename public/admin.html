@@ -88,17 +88,27 @@
   <!-- Notification -->
   <div id="admin-notification" class="hidden"></div>
 
+  <!-- 🎵 Hidden background music player -->
+  <iframe src="/player.html" style="display:none;" id="bg-music-player" hidden></iframe>
+
   <script src="main.js"></script>
+
   <script>
-    // 🎵 Music player popup logic
+    // ✅ 1. Admin button opens visible music player control window
     let musicWindow;
     document.getElementById('open-music-btn')?.addEventListener('click', () => {
       if (!musicWindow || musicWindow.closed) {
-        musicWindow = window.open('/player.html', 'musicPlayer', 'width=400,height=120');
+        musicWindow = window.open('/player.html', 'musicPlayer', 'width=400,height=160');
       } else {
         musicWindow.focus();
       }
     });
+
+    // ✅ 2. Trigger autoplay on first user interaction (required by browser)
+    window.addEventListener('click', () => {
+      const iframe = document.getElementById('bg-music-player');
+      iframe?.contentWindow?.postMessage('start-music', '*');
+    }, { once: true });
   </script>
 </body>
 </html>

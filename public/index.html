@@ -57,7 +57,18 @@
   <!-- Notification message -->
   <div id="notification" class="notification hidden" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
+  <!-- 🎵 Hidden background music player -->
+  <iframe src="/player.html" style="display:none;" id="bg-music-player" hidden></iframe>
 
   <script src="main.js" defer></script>
+
+  <script>
+    // ✅ Trigger autoplay on first user interaction
+    window.addEventListener('click', () => {
+      const iframe = document.getElementById('bg-music-player');
+      iframe?.contentWindow?.postMessage('start-music', '*');
+    }, { once: true });
+  </script>
 </body>
 </html>
+
