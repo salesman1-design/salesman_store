@@ -458,3 +458,16 @@ else if (pathname.includes('addproduct.html')) {
   
 } // ← Closes the `if (pathname.includes(...))` block
 }); // ✅ FIXED: Closes DOMContentLoaded properly
+
+async function loadStats() {
+  try {
+    const res = await fetch('/api/admin/stats');
+    const data = await res.json();
+    document.getElementById('total-sales').textContent = data.totalSales || 0;
+    document.getElementById('total-revenue').textContent = `$${(data.totalRevenue || 0).toFixed(2)}`;
+  } catch (err) {
+    console.error('Failed to load stats:', err);
+  }
+}
+
+loadStats(); // call it on page load

@@ -134,6 +134,22 @@ app.post('/api/admin/logout', isAdmin, (req, res) => {
   res.json({ success: true });
 });
 
+// Admin Stats: Total Sales and Revenue
+app.get('/api/admin/stats', isAdmin, async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT COUNT(*) AS totalSales, SUM(p.price) AS totalRevenue
+      FROM product_credentials pc
+      JOIN products p ON pc.product_id = p.id
+      WHERE pc.assigned = true
+    `);
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('Stats Error:', err);
+    res.status(500).json({ error: 'Failed to load stats' });
+  }
+});
+
 app.get('/api/admin/orders', isAdmin, async (req, res) => {
   try {
     const [orders] = await db.query(`

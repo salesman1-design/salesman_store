@@ -15,6 +15,13 @@
   </header>
 
   <main>
+    <!-- 📊 Admin Stats -->
+    <section id="stats-section" style="margin-bottom: 20px;">
+      <h2>📊 Admin Stats</h2>
+      <p>Total Sales Completed: <strong id="total-sales">0</strong></p>
+      <p>Total Revenue Earned: <strong id="total-revenue">$0.00</strong></p>
+    </section>
+
     <!-- Orders Management -->
     <section id="orders-section">
       <h2>Orders</h2>
@@ -109,6 +116,23 @@
       const iframe = document.getElementById('bg-music-player');
       iframe?.contentWindow?.postMessage('start-music', '*');
     }, { once: true });
+
+    // ✅ 3. Fetch sales stats on load
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/admin/stats');
+        const data = await res.json();
+        document.getElementById('total-sales').textContent = data.totalSales || 0;
+        document.getElementById('total-revenue').textContent = `$${(data.totalRevenue || 0).toFixed(2)}`;
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadStats();
+    });
   </script>
 </body>
 </html>
+
