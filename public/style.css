@@ -96,15 +96,20 @@ header.site-header {
   align-items: start;
 }
 
-/* Fix single product layout */
-#products-container:has(.product-card:only-child) {
+/* Fix layout when 1 or 2 products appear (e.g., during search) */
+#products-container,
+.products-grid {
   justify-items: center;
-  grid-template-columns: 1fr !important;
 }
 
-.product-card:only-child {
+/* For 1 or 2 cards, center them properly */
+#products-container .product-card:nth-child(1):nth-last-child(1),
+#products-container .product-card:nth-child(1):nth-last-child(2),
+#products-container .product-card:nth-child(2):nth-last-child(1) {
   max-width: 420px;
+  width: 100%;
 }
+
 
 /* Product Card */
 .product-card {
@@ -125,13 +130,12 @@ header.site-header {
 
 .product-card img {
   width: 100%;
-  max-height: 180px;
-  object-fit: contain;
-  background-color: #f4f4f4; /* Optional: matches background */
+  height: 200px;
+  object-fit: cover;
+  background-color: #f4f4f4;
   border-radius: 8px;
   margin-bottom: 12px;
 }
-
 
 .product-card h3 {
   font-size: 1.1rem;
@@ -254,6 +258,7 @@ header.site-header {
     padding: 1.2rem;
   }
 }
+
 .admin-btn {
   margin: 0.5rem;
   padding: 0.6rem 1rem;
@@ -264,6 +269,8 @@ header.site-header {
   border-radius: 5px;
   cursor: pointer;
 }
+
 .admin-btn:hover {
   background-color: #444;
 }
+
