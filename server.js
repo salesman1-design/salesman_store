@@ -32,12 +32,13 @@ app.use(session({
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
-  secure: process.env.SMTP_SECURE === 'true',
+  secure: process.env.SMTP_SECURE === 'true', // should now be 'true' in .env with port 465
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
+
 
 function isAdmin(req, res, next) {
   if (req.session && req.session.isAdmin) return next();
@@ -70,25 +71,26 @@ app.post('/api/orders', async (req, res) => {
 
     const [[product]] = await db.query('SELECT * FROM products WHERE id = ?', [productId]);
 
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: process.env.OWNER_EMAIL,
-      subject: `New Order from ${buyerEmail}`,
-      html: `
-        <h2>New Order Received</h2>
-        <p><strong>Product:</strong> ${product.name}</p>
-        <p><strong>Price:</strong> $${product.price}</p>
-        <p><strong>Buyer Email:</strong> ${buyerEmail}</p>
-        <p><strong>Buyer ID:</strong> ${buyerId}</p>
-        <p><strong>Time:</strong> ${timestamp}</p>
-      `
-    });
+	await transporter.sendMail({
+	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+	  to: process.env.OWNER_EMAIL,
+	  subject: `🆕 New Order for ${product.name}`,
+	  html: `
+		<h2>📦 New Order Received</h2>
+		<p><strong>Product:</strong> ${product.name}</p>
+		<p><strong>Product ID:</strong> ${product.id}</p>
+		<p><strong>Price:</strong> $${product.price}</p>
+		<p><strong>Buyer Email:</strong> ${buyerEmail}</p>
+		<p><strong>Buyer ID:</strong> ${buyerId}</p>
+		<p><strong>Time:</strong> ${timestamp}</p>
+	  `
+	});
 
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: buyerEmail,
-      subject: `Your Order for ${product.name}`,
-      html: `
+	await transporter.sendMail({
+	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+	  to: buyerEmail,
+	  subject: `Your Order for ${product.name}`,
+	  html: `
         <h2>Thank you for your order!</h2>
         <p><strong>Product:</strong> ${product.name}</p>
         <p><strong>Price:</strong> $${product.price}</p>
@@ -154,12 +156,25 @@ app.post('/api/admin/orders/:buyerId/accept', isAdmin, async (req, res) => {
     const [[order]] = await db.query('SELECT * FROM orders WHERE buyer_id = ?', [buyerId]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: order.buyer_email,
-      subject: 'Payment Instructions',
-      text: `Hello,\n\nPlease send your payment to CashApp:\n\n$shayIrl\n\nInclude your Buyer ID in the note:\n${order.buyer_id}\n\nThen upload your screenshot on the site.`
-    });
+	await transporter.sendMail({
+	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+	  to: order.buyer_email,
+	  subject: 'Payment Instructions',
+	  text: `
+	Hello,
+
+	Please send your payment to CashApp:
+	$shayIrl
+
+	Include your Buyer ID in the note:
+	${order.buyer_id}
+
+	Then upload your screenshot on the site.
+
+	Thank you,
+	Salesman Empire
+	`.trim()
+	});
 
     res.json({ success: true }); // ✅ DO NOT delete order
   } catch (err) {
@@ -176,12 +191,26 @@ app.post('/api/admin/orders/:buyerId/decline', isAdmin, async (req, res) => {
     const [[order]] = await db.query('SELECT * FROM orders WHERE buyer_id = ?', [buyerId]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: order.buyer_email,
-      subject: 'Order Declined',
-      text: `Hello,\n\nYour order with Buyer ID ${order.buyer_id} has been declined.\nIf this was a mistake or you believe you paid, please contact support.`
-    });
+	await transporter.sendMail({
+	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+	  to: order.buyer_email,
+	  subject: '❌ Your Order Has Been Declined',
+	  text: `
+	Hello,
+
+	Unfortunately, your order has been declined.
+
+	🧾 Buyer ID: ***${order.buyer_id}***
+
+	If you believe this is a mistake or if you've already made a payment, please reach out to us for assistance.
+
+	📧 Email: fastfire978@gmail.com  
+	📱 Instagram: @salesman_empire
+
+	Thank you for your understanding,  
+	Salesman Empire
+	  `.trim()
+	});
 
     await db.query('DELETE FROM orders WHERE buyer_id = ?', [buyerId]);
 
@@ -209,28 +238,43 @@ app.post('/api/admin/orders/:buyerId/complete', isAdmin, async (req, res) => {
     const credential = creds[0];
     await db.query('UPDATE product_credentials SET assigned = true WHERE id = ?', [credential.id]);
 
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: order.buyer_email,
-      subject: 'Your Credentials',
-      text: `Thank you for your purchase!\n\nHere are your credentials:\nEmail: ${credential.email}\nPassword: ${credential.password}`
-    });
+	 await transporter.sendMail({
+	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+	  to: order.buyer_email,
+	  subject: 'Your Purchase Details & Login Credentials',
+	  text: `
+	Thank you for your purchase!
+
+	Here are your credentials:
+
+	Email: ${credential.email}
+	Password: ${credential.password}
+
+	⚠️ Please remember: This account is not yours to keep. Use it as instructed and do not change the password unless told.
+
+	If you have any issues, contact us at fastfire978@gmail.com or on Instagram @salesman_empire.
+
+	– Salesman Empire
+	`.trim()
+	});
 	
 	await transporter.sendMail({
-	  from: process.env.SMTP_USER,
+	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
 	  to: process.env.OWNER_EMAIL,
-	  subject: `✅ Credential Sent to Buyer: ${order.buyer_id}`,
+	  subject: `✅ Credential Sent: Buyer ID ${order.buyer_id}`,
 	  text: `
-	A buyer has received credentials:
+	A buyer has been sent credentials.
 
 	🧾 Buyer ID: ${order.buyer_id}
 	📧 Email: ${credential.email}
 	🔑 Password: ${credential.password}
-	💰 Product: ${order.product_id}
-	  `.trim()
+	💰 Product ID: ${order.product_id}
+
+	– Salesman Empire Bot
+	`.trim()
 	});
 
- 
+
     await db.query('DELETE FROM orders WHERE buyer_id = ?', [buyerId]); // ✅ fixed here
     res.json({ success: true });
   } catch (err) {
@@ -377,7 +421,7 @@ app.get('/api/admin/product/:id', isAdmin, async (req, res) => {
   }
 });
 
-// multer setup for memory upload
+// Multer setup for memory upload
 const upload = multer({ storage: multer.memoryStorage() });
 
 async function notifyFlaggedImageEmail({
@@ -390,32 +434,35 @@ async function notifyFlaggedImageEmail({
   imageBuffer,
   filename
 }) {
-  const text = `
-⚠️ OCR FLAGGED IMAGE
+  const message = `
+🚩 OCR FLAGGED IMAGE DETECTED
 
-Reason: ${reason}
-Buyer ID(s): ${buyerIds || 'None'}
-Buyer Match Score: ${bestScore || 'N/A'}
-Tag Matched: ${tagMatch}
-Price Matched: ${priceMatch}
-OCR Text:
-====================
+🔍 Reason: ${reason}
+🧾 Buyer ID(s): ${buyerIds || 'None'}
+📊 Buyer Match Score: ${bestScore || 'N/A'}
+🏷️ Tag Matched: ${tagMatch ? '✅ Yes' : '❌ No'}
+💵 Price Matched: ${priceMatch ? '✅ Yes' : '❌ No'}
+
+📄 OCR Extracted Text:
+========================
 ${rawText}
-  `.trim();
+========================
+`.trim();
 
   await transporter.sendMail({
-    from: process.env.SMTP_USER,
+    from: `"Salesman Empire OCR Bot" <${process.env.SMTP_USER}>`,
     to: process.env.OWNER_EMAIL,
-    subject: `🚩 OCR Flagged Screenshot`,
-    text,
+    subject: '🚨 OCR Flagged Screenshot',
+    text: message,
     attachments: [
       {
-        filename,
+        filename: filename || 'flagged_screenshot.png',
         content: imageBuffer
       }
     ]
   });
 }
+
 
 app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res) => {
   if (!req.file || !req.file.buffer) {
@@ -551,19 +598,39 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
 
     const credential = creds[0];
     await db.query('UPDATE product_credentials SET assigned = true WHERE id = ?', [credential.id]);
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: matchedOrder.buyer_email,
-      subject: 'Your Credentials',
-      text: `Thank you!\nEmail: ${credential.email}\nPassword: ${credential.password}`
-    });
+	await transporter.sendMail({
+	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+	  to: matchedOrder.buyer_email,
+	  subject: 'Your Credentials – Salesman Empire',
+	  text: `
+	Thank you for your purchase!
 
-    await transporter.sendMail({
-      from: process.env.SMTP_USER,
-      to: process.env.OWNER_EMAIL,
-      subject: `✅ Credentials Sent`,
-      text: `Buyer ID: ${matchedOrder.buyer_id}\nProduct: ${matchedOrder.product_id}`
-    });
+	Here are your login details:
+
+	Email: ${credential.email}
+	Password: ${credential.password}
+
+	⚠️ Note: This account is for one-time use only. Please do not change the password unless instructed.
+
+	Need help? Contact us at fastfire978@gmail.com or on Instagram @salesman_empire.
+
+	– Salesman Empire
+	`.trim()
+	});
+	
+	await transporter.sendMail({
+	  from: `"Salesman Empire Bot" <${process.env.SMTP_USER}>`,
+	  to: process.env.OWNER_EMAIL,
+	  subject: '✅ Credentials Sent to Buyer',
+	  text: `
+	A buyer has received credentials.
+
+	🧾 Buyer ID: ${matchedOrder.buyer_id}
+	📧 Email: ${credential.email}
+	🔑 Password: ${credential.password}
+	💰 Product ID: ${matchedOrder.product_id}
+	`.trim()
+	});
 
     await db.query('DELETE FROM orders WHERE id = ?', [matchedOrder.id]);
 
@@ -574,13 +641,6 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
-
-
-
-
-
-
 
 
 async function notifyFlagged(ocrText, reason, buyerId = 'UNKNOWN') {
