@@ -274,3 +274,18 @@ header.site-header {
   background-color: #444;
 }
 
+.giveaway-link {
+  display: inline-block;
+  background-color: gold;
+  color: black;
+  padding: 12px 18px;
+  border-radius: 12px;
+  text-decoration: none;
+  font-weight: bold;
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+  margin-top: 16px;
+  transition: transform 0.2s ease;
+}
+.giveaway-link:hover {
+  transform: scale(1.05);
+}

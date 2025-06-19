@@ -46,35 +46,34 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-	function renderProducts(items) {
-	  if (!productsContainer) return;
-	  productsContainer.innerHTML = '';
+    function renderProducts(items) {
+      if (!productsContainer) return;
+      productsContainer.innerHTML = '';
 
-	  if (!items.length) {
-		productsContainer.innerHTML = `
-		  <div class="no-results" style="width:100%; text-align:center; padding:1rem;">
-			<p>No products found.</p>
-		  </div>
-		`;
-		
-		return;
-	  }
+      if (!items.length) {
+        productsContainer.innerHTML = `
+          <div class="no-results" style="width:100%; text-align:center; padding:1rem;">
+            <p>No products found.</p>
+          </div>
+        `;
+        return;
+      }
 
-	  items.forEach(p => {
-		const card = document.createElement('div');
-		card.className = 'product-card';
-		card.innerHTML = `
-		  <img src="${p.image_url}" alt="${p.name}" class="product-img">
-		  <div class="product-info">
-			<h3>${p.name}</h3>
-			<p class="description">${p.description}</p>
-			<p class="price">$${parseFloat(p.price).toFixed(2)}</p>
-			<button class="buy-btn" data-id="${p.id}">Buy</button>
-		  </div>
-		`;
-		productsContainer.appendChild(card);
-	  });
-	}
+      items.forEach(p => {
+        const card = document.createElement('div');
+        card.className = 'product-card';
+        card.innerHTML = `
+          <img src="${p.image_url}" alt="${p.name}" class="product-img">
+          <div class="product-info">
+            <h3>${p.name}</h3>
+            <p class="description">${p.description}</p>
+            <p class="price">$${parseFloat(p.price).toFixed(2)}</p>
+            <button class="buy-btn" data-id="${p.id}">Buy</button>
+          </div>
+        `;
+        productsContainer.appendChild(card);
+      });
+    }
 
     searchInput?.addEventListener('input', () => {
       const query = searchInput.value.toLowerCase().trim();
@@ -153,7 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
         fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: 'fastfire9', password })
+          body: JSON.stringify({ username: 'fastfire9', password }),
+          credentials: 'include'  // for session cookie
         })
           .then(res => {
             if (res.ok) {
@@ -194,7 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadOrders() {
       try {
-        const res = await fetch('/api/admin/orders');
+        const res = await fetch('/api/admin/orders', { credentials: 'include' });
         if (!res.ok) throw new Error('Failed to fetch orders');
         orders = await res.json();
         renderOrders(orders);
@@ -204,38 +204,38 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-	function renderOrders(orderList) {
-	  if (!ordersTableBody) return;
-	  ordersTableBody.innerHTML = '';
-	  if (!orderList.length) {
-		ordersTableBody.innerHTML = `<tr><td colspan="6">No orders available</td></tr>`;
-		return;
-	  }
+    function renderOrders(orderList) {
+      if (!ordersTableBody) return;
+      ordersTableBody.innerHTML = '';
+      if (!orderList.length) {
+        ordersTableBody.innerHTML = `<tr><td colspan="6">No orders available</td></tr>`;
+        return;
+      }
 
-	  orderList.forEach(o => {
-		const showActions = ['pending', 'flagged'].includes(o.status);
+      orderList.forEach(o => {
+        const showActions = ['pending', 'flagged'].includes(o.status);
 
-		ordersTableBody.innerHTML += `
-		  <tr>
-			<td>${o.buyer_id}</td>
-			<td>${o.buyer_email}</td>
-			<td>${o.product_name}</td>
-			<td>${o.status}</td>
-			<td>
-			  ${showActions ? `
-				<button class="accept-btn" data-id="${o.buyer_id}">Accept Order</button>
-				<button class="complete-btn" data-id="${o.buyer_id}">Accept Sale</button>
-				<button class="decline-btn" data-id="${o.buyer_id}">Decline</button>
-			  ` : '—'}
-			</td>
-		  </tr>
-		`;
-	  });
-	}
-	
+        ordersTableBody.innerHTML += `
+          <tr>
+            <td>${o.buyer_id}</td>
+            <td>${o.buyer_email}</td>
+            <td>${o.product_name}</td>
+            <td>${o.status}</td>
+            <td>
+              ${showActions ? `
+                <button class="accept-btn" data-id="${o.buyer_id}">Accept Order</button>
+                <button class="complete-btn" data-id="${o.buyer_id}">Accept Sale</button>
+                <button class="decline-btn" data-id="${o.buyer_id}">Decline</button>
+              ` : '—'}
+            </td>
+          </tr>
+        `;
+      });
+    }
+
     async function loadProducts() {
       try {
-        const res = await fetch('/api/products');
+        const res = await fetch('/api/products', { credentials: 'include' });
         if (!res.ok) throw new Error('Failed to fetch products');
         products = await res.json();
         renderProducts(products);
@@ -269,7 +269,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     logoutBtn?.addEventListener('click', async () => {
       try {
-        const res = await fetch('/api/admin/logout', { method: 'POST' });
+        const res = await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
         if (res.ok) window.location.href = '/';
         else alert('Logout failed');
       } catch {
@@ -281,34 +281,34 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.href = '/addproduct.html';
     });
 
-	ordersTableBody?.addEventListener('click', async (e) => {
-	  const id = e.target.dataset.id;
-	  if (!id) return;
+    ordersTableBody?.addEventListener('click', async (e) => {
+      const id = e.target.dataset.id;
+      if (!id) return;
 
-	  if (e.target.classList.contains('accept-btn')) {
-		await handleOrderAction(id, 'accept');
-	  }
-	  if (e.target.classList.contains('complete-btn')) {
-		await handleOrderAction(id, 'complete');
-	  }
-	  if (e.target.classList.contains('decline-btn')) {
-		await handleOrderAction(id, 'decline');
-	  }
-	});
+      if (e.target.classList.contains('accept-btn')) {
+        await handleOrderAction(id, 'accept');
+      }
+      if (e.target.classList.contains('complete-btn')) {
+        await handleOrderAction(id, 'complete');
+      }
+      if (e.target.classList.contains('decline-btn')) {
+        await handleOrderAction(id, 'decline');
+      }
+    });
 
-	async function handleOrderAction(id, action) {
-	  try {
-		const res = await fetch(`/api/admin/orders/${id}/${action}`, { method: 'POST' });
-		if (res.ok) {
-		  await loadOrders(); // ✅ this reloads orders
-		} else {
-		  const err = await res.json();
-		  alert(err.error || 'Action failed');
-		}
-	  } catch {
-		alert('Network error');
-	  }
-	}
+    async function handleOrderAction(id, action) {
+      try {
+        const res = await fetch(`/api/admin/orders/${id}/${action}`, { method: 'POST', credentials: 'include' });
+        if (res.ok) {
+          await loadOrders(); // reload orders on action success
+        } else {
+          const err = await res.json();
+          alert(err.error || 'Action failed');
+        }
+      } catch {
+        alert('Network error');
+      }
+    }
 
     productsTableBody?.addEventListener('click', (e) => {
       const id = e.target.dataset.id;
@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (e.target.classList.contains('delete-product-btn')) {
         if (confirm('Delete this product?')) {
-          fetch(`/api/products/${id}`, { method: 'DELETE' })
+          fetch(`/api/products/${id}`, { method: 'DELETE', credentials: 'include' })
             .then(res => {
               if (res.ok) {
                 showNotification('Product deleted.');
@@ -329,145 +329,167 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
 
-	orderSearchInput?.addEventListener('input', () => {
-	  const q = orderSearchInput.value.toLowerCase();
-	  const filtered = orders.filter(o =>
-		o.buyer_email.toLowerCase().includes(q) ||
-		o.product_name.toLowerCase().includes(q) ||
-		o.buyer_id.toLowerCase().includes(q)  // ✅ Add this
-	  );
-	  renderOrders(filtered);
-	});
+    orderSearchInput?.addEventListener('input', () => {
+      const q = orderSearchInput.value.toLowerCase();
+      const filtered = orders.filter(o =>
+        o.buyer_email.toLowerCase().includes(q) ||
+        o.product_name.toLowerCase().includes(q) ||
+        o.buyer_id.toLowerCase().includes(q)
+      );
+      renderOrders(filtered);
+    });
 
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/admin/stats', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to fetch stats');
+        const data = await res.json();
+        document.getElementById('total-sales').textContent = data.totalOrders || 0;
+        document.getElementById('total-revenue').textContent = `$${(data.totalIncome || 0).toFixed(2)}`;
+      } catch (err) {
+        console.error('Failed to load stats:', err);
+      }
+    }
+
+    // Visitor count loader
+    async function loadVisitorCounts() {
+      try {
+        const res = await fetch('/api/admin/visitors', { credentials: 'include' });
+        if (!res.ok) throw new Error('Failed to load visitor counts');
+        const data = await res.json();
+
+        document.getElementById('visitor-index').textContent = data['index.html'] || 0;
+        document.getElementById('visitor-giveaway').textContent = data['giveaway.html'] || 0;
+      } catch (e) {
+        console.error('Visitor counts load error:', e);
+      }
+    }
+
+    // Placeholder for giveaway loader - fill with your code if needed
+    async function loadGiveaways() {
+      // TODO: implement giveaway table load
+    }
+
+    // Initial load calls
     loadOrders();
     loadProducts();
+    loadStats();
+    loadGiveaways();
+    loadVisitorCounts();
   }
 
   // === ADD PRODUCT PAGE LOGIC ===
+  else if (pathname.includes('addproduct.html')) {
+    const form = el('product-form');
+    const backBtn = el('back-btn');
 
-else if (pathname.includes('addproduct.html')) {
-  const form = el('product-form');
-  const backBtn = el('back-btn');
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('id');
 
-  const params = new URLSearchParams(window.location.search);
-  const id = params.get('id');
+    if (id) {
+      fetch(`/api/admin/product/${id}`, { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+          if (data) {
+            el('product-id').value = data.id;
+            el('name').value = data.name;
+            el('description').value = data.description;
+            el('price').value = data.price;
+            el('image_url').value = data.image_url || data.image || '';
 
-  if (id) {
-    fetch(`/api/admin/product/${id}`)
-      .then(res => res.json())
-      .then(data => {
-        if (data) {
-          el('product-id').value = data.id;
-          el('name').value = data.name;
-          el('description').value = data.description;
-          el('price').value = data.price;
-          el('image_url').value = data.image_url || data.image || '';
+            if (data.credentials && data.credentials.length > 0) {
+              el('email1').value = data.credentials[0]?.email || '';
+              el('password1').value = data.credentials[0]?.password || '';
+              el('email2').value = data.credentials[1]?.email || '';
+              el('password2').value = data.credentials[1]?.password || '';
 
-          if (data.credentials && data.credentials.length > 0) {
-            el('email1').value = data.credentials[0]?.email || '';
-            el('password1').value = data.credentials[0]?.password || '';
-            el('email2').value = data.credentials[1]?.email || '';
-            el('password2').value = data.credentials[1]?.password || '';
+              if (data.credentials[0]?.assigned) {
+                const btn1 = document.createElement('button');
+                btn1.textContent = '🔁 Reset';
+                btn1.type = 'button';
+                btn1.onclick = async () => {
+                  await fetch(`/api/admin/credentials/${data.credentials[0].id}/reset`, { method: 'POST', credentials: 'include' });
+                  window.location.reload();
+                };
+                el('password1').after(btn1);
+              }
 
-            if (data.credentials[0]?.assigned) {
-              const btn1 = document.createElement('button');
-              btn1.textContent = '🔁 Reset';
-              btn1.type = 'button';
-              btn1.onclick = async () => {
-                await fetch(`/api/admin/credentials/${data.credentials[0].id}/reset`, { method: 'POST' });
-                window.location.reload();
-              };
-              el('password1').after(btn1);
-            }
-
-            if (data.credentials[1]?.assigned) {
-              const btn2 = document.createElement('button');
-              btn2.textContent = '🔁 Reset';
-              btn2.type = 'button';
-              btn2.onclick = async () => {
-                await fetch(`/api/admin/credentials/${data.credentials[1].id}/reset`, { method: 'POST' });
-                window.location.reload();
-              };
-              el('password2').after(btn2);
+              if (data.credentials[1]?.assigned) {
+                const btn2 = document.createElement('button');
+                btn2.textContent = '🔁 Reset';
+                btn2.type = 'button';
+                btn2.onclick = async () => {
+                  await fetch(`/api/admin/credentials/${data.credentials[1].id}/reset`, { method: 'POST', credentials: 'include' });
+                  window.location.reload();
+                };
+                el('password2').after(btn2);
+              }
             }
           }
-        }
-      });
-  }
-
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const emailPasswords = [];
-    if (el('email1').value && el('password1').value) {
-      emailPasswords.push({ email: el('email1').value, password: el('password1').value });
-    }
-    if (el('email2').value && el('password2').value) {
-      emailPasswords.push({ email: el('email2').value, password: el('password2').value });
+        });
     }
 
-    const payload = {
-      id: el('product-id').value || null,
-      name: el('name').value.trim(),
-      description: el('description').value.trim(),
-      price: parseFloat(el('price').value),
-      image_url: el('image_url').value.trim(),
-      emailPasswords
-    };
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
 
-	console.log('Sending product:', payload);  // ✅ Safe now
-
-    try {
-      const res = await fetch('/api/admin/products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        alert('Product saved!');
-        window.location.href = '/admin.html';
-      } else {
-        alert('Failed to save product');
+      const emailPasswords = [];
+      if (el('email1').value && el('password1').value) {
+        emailPasswords.push({ email: el('email1').value, password: el('password1').value });
       }
-    } catch {
-      alert('Network error');
+      if (el('email2').value && el('password2').value) {
+        emailPasswords.push({ email: el('email2').value, password: el('password2').value });
+      }
+
+      const payload = {
+        id: el('product-id').value || null,
+        name: el('name').value.trim(),
+        description: el('description').value.trim(),
+        price: parseFloat(el('price').value),
+        image_url: el('image_url').value.trim(),
+        emailPasswords
+      };
+
+      console.log('Sending product:', payload);
+
+      try {
+        const res = await fetch('/api/admin/products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          credentials: 'include'
+        });
+
+        if (res.ok) {
+          alert('Product saved!');
+          window.location.href = '/admin.html';
+        } else {
+          alert('Failed to save product');
+        }
+      } catch {
+        alert('Network error');
+      }
+    });
+
+    backBtn?.addEventListener('click', () => {
+      window.location.href = '/admin.html';
+    });
+
+    function generateRandomPassword(length = 10) {
+      const charset = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$_';
+      let pass = '';
+      for (let i = 0; i < length; i++) {
+        pass += charset.charAt(Math.floor(Math.random() * charset.length));
+      }
+      return pass;
     }
-  });
 
-  backBtn?.addEventListener('click', () => {
-    window.location.href = '/admin.html';
-  });
+    el('regen-pass1')?.addEventListener('click', () => {
+      el('password1').value = generateRandomPassword();
+    });
 
-  function generateRandomPassword(length = 10) {
-    const charset = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$_';
-    let pass = '';
-    for (let i = 0; i < length; i++) {
-      pass += charset.charAt(Math.floor(Math.random() * charset.length));
-    }
-    return pass;
-  }
+    el('regen-pass2')?.addEventListener('click', () => {
+      el('password2').value = generateRandomPassword();
+    });
+  } // end addproduct.html block
+}); // end DOMContentLoaded
 
-  el('regen-pass1')?.addEventListener('click', () => {
-    el('password1').value = generateRandomPassword();
-  });
-
-  el('regen-pass2')?.addEventListener('click', () => {
-    el('password2').value = generateRandomPassword();
-  });
-  
-} // ← Closes the `if (pathname.includes(...))` block
-}); // ✅ FIXED: Closes DOMContentLoaded properly
-
-async function loadStats() {
-  try {
-    const res = await fetch('/api/admin/stats');
-    const data = await res.json();
-    document.getElementById('total-sales').textContent = data.totalSales || 0;
-    document.getElementById('total-revenue').textContent = `$${(data.totalRevenue || 0).toFixed(2)}`;
-  } catch (err) {
-    console.error('Failed to load stats:', err);
-  }
-}
-
-loadStats(); // call it on page load

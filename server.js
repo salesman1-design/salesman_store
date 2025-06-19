@@ -15,9 +15,8 @@ const crypto = require('crypto');
 const exif = require('exif-parser');
 const sharp = require('sharp');
 
-
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -28,24 +27,205 @@ app.use(session({
   saveUninitialized: false,
 }));
 
-
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT),
-  secure: process.env.SMTP_SECURE === 'true', // should now be 'true' in .env with port 465
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
 });
 
-
 function isAdmin(req, res, next) {
   if (req.session && req.session.isAdmin) return next();
   return res.status(401).send('Unauthorized');
 }
 
-// Products
+// --- GIVEAWAY HELPERS ---
+
+async function handleOrderCompletion(buyerId) {
+  try {
+    // Log the completed order buyerId
+    await db.query('INSERT INTO completed_orders (buyer_id) VALUES (?)', [buyerId]);
+
+    // Fetch the active giveaway triggered by order count
+    const [giveaways] = await db.query(`
+      SELECT * FROM giveaways WHERE is_active = TRUE AND trigger_type = 'order_count' LIMIT 1
+    `);
+    if (!giveaways.length) return;
+
+    const giveaway = giveaways[0];
+
+    // Get the latest completed orders limited by the giveaway trigger value
+    const [orders] = await db.query(`
+      SELECT DISTINCT buyer_id FROM completed_orders ORDER BY completed_at DESC LIMIT ?
+    `, [giveaway.trigger_value]);
+
+    // If not enough orders yet, don't trigger giveaway
+    if (orders.length < giveaway.trigger_value) return;
+
+    // Shuffle orders and pick 3 winners randomly
+    const shuffled = orders.sort(() => 0.5 - Math.random());
+    const winners = shuffled.slice(0, 3).map(o => o.buyer_id);
+
+    // Update giveaway to store winners and deactivate it
+    await db.query(`
+      UPDATE giveaways SET winners = ?, is_active = FALSE WHERE id = ?
+    `, [JSON.stringify(winners), giveaway.id]);
+
+    // Send emails to winners
+    for (const winnerId of winners) {
+      await sendGiveawayWinnerEmail(winnerId);
+    }
+  } catch (err) {
+    console.error('Giveaway Error:', err);
+  }
+}
+
+async function sendGiveawayWinnerEmail(buyerId) {
+  const subject = "🎉 Congratulations! You Won the Golden ID Giveaway!";
+  const text = `
+Hi ${buyerId},
+
+You've been randomly selected as one of the 3 winners in the Golden ID Giveaway!
+
+Thank you for being a valued buyer.
+
+– Salesman Empire Team
+  `;
+
+  await transporter.sendMail({
+    from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+    to: `${buyerId}@gmail.com`, // adjust domain if needed
+    subject,
+    text
+  });
+}
+
+// 🎯 Manually trigger the giveaway
+app.post('/api/admin/giveaway/trigger', isAdmin, async (req, res) => {
+  try {
+    // Find the currently active giveaway
+    const [rows] = await db.query(`
+      SELECT * FROM giveaways 
+      WHERE is_active = TRUE AND trigger_type = 'manual' 
+      ORDER BY created_at DESC LIMIT 1
+    `);
+
+    if (!rows.length) return res.status(400).json({ error: 'No active manual giveaway found.' });
+
+    const giveaway = rows[0];
+
+    // Get the latest distinct buyers from completed_orders (same as order_count logic)
+    const [orders] = await db.query(`
+      SELECT DISTINCT buyer_id 
+      FROM completed_orders 
+      ORDER BY completed_at DESC LIMIT ?
+    `, [giveaway.trigger_value]);
+
+    if (orders.length < giveaway.trigger_value) {
+      return res.status(400).json({ error: `Not enough completed orders to trigger. Need ${giveaway.trigger_value}` });
+    }
+
+    // Pick 3 random winners
+    const shuffled = orders.sort(() => 0.5 - Math.random());
+    const winners = shuffled.slice(0, 3).map(o => o.buyer_id);
+
+    // Mark giveaway as completed with winners
+    await db.query(`
+      UPDATE giveaways 
+      SET winners = ?, is_active = FALSE 
+      WHERE id = ?
+    `, [JSON.stringify(winners), giveaway.id]);
+
+    // Notify winners
+    for (const winnerId of winners) {
+      await sendGiveawayWinnerEmail(winnerId);
+    }
+
+    res.json({ success: true, winners });
+  } catch (err) {
+    console.error('Manual Giveaway Trigger Error:', err);
+    res.status(500).json({ error: 'Failed to trigger giveaway.' });
+  }
+});
+
+// Get all giveaways
+app.get('/api/admin/giveaways', isAdmin, async (req, res) => {
+  try {
+    const [rows] = await db.query(`
+      SELECT id, title, description, trigger_type, trigger_value, end_date, is_active, winners, created_at
+      FROM giveaways
+      ORDER BY created_at DESC
+    `);
+
+    rows.forEach(row => {
+      try {
+        row.winners = row.winners ? JSON.parse(row.winners) : [];
+      } catch {
+        row.winners = [];
+      }
+    });
+
+    res.json(rows);
+  } catch (err) {
+    console.error('Error fetching giveaways:', err);
+    res.status(500).json({ error: 'Failed to fetch giveaways' });
+  }
+});
+
+// Get the latest giveaway (public, no auth)
+app.get('/api/giveaway/latest', async (req, res) => {
+  try {
+    // Fetch the latest giveaway that is either active or ended within the last 24 hours
+    // Adjust this window if needed to keep winners visible briefly after end
+    const [rows] = await db.query(`
+      SELECT 
+        id, title, description, trigger_type, trigger_value, end_date, is_active, winners, created_at
+      FROM giveaways
+      WHERE is_active = TRUE OR (end_date >= NOW() - INTERVAL 1 DAY)
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'No giveaway found' });
+    }
+
+    const giveaway = rows[0];
+
+    // Parse winners safely
+    try {
+      giveaway.winners = giveaway.winners ? JSON.parse(giveaway.winners) : [];
+    } catch {
+      giveaway.winners = [];
+    }
+
+    // Format end_date as ISO string or null
+    giveaway.end_date = giveaway.end_date ? new Date(giveaway.end_date).toISOString() : null;
+
+    // Send only relevant public fields
+    res.json({
+      id: giveaway.id,
+      title: giveaway.title,
+      description: giveaway.description,
+      trigger_type: giveaway.trigger_type,
+      trigger_value: giveaway.trigger_value,
+      end_date: giveaway.end_date,
+      is_active: giveaway.is_active,
+      winners: giveaway.winners,
+      created_at: giveaway.created_at,
+    });
+  } catch (err) {
+    console.error('Failed to fetch latest giveaway:', err);
+    res.status(500).json({ error: 'Server error fetching giveaway' });
+  }
+});
+
+// --- ROUTES ---
+
+// Products list
 app.get('/api/products', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT * FROM products');
@@ -56,6 +236,7 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
+// Place order
 app.post('/api/orders', async (req, res) => {
   const { productId, buyerEmail } = req.body;
   if (!productId || !buyerEmail) return res.status(400).json({ error: 'Missing productId or buyerEmail' });
@@ -64,33 +245,35 @@ app.post('/api/orders', async (req, res) => {
     const buyerId = Math.random().toString(36).slice(2, 10).toUpperCase();
     const timestamp = new Date().toLocaleString();
 
-	await db.query(
-	  'INSERT INTO orders (product_id, buyer_email, buyer_id, status, created_at) VALUES (?, ?, ?, ?, NOW())',
-	  [productId, buyerEmail, buyerId, 'pending']
-	);
+    await db.query(
+      'INSERT INTO orders (product_id, buyer_email, buyer_id, status, created_at) VALUES (?, ?, ?, ?, NOW())',
+      [productId, buyerEmail, buyerId, 'pending']
+    );
 
     const [[product]] = await db.query('SELECT * FROM products WHERE id = ?', [productId]);
 
-	await transporter.sendMail({
-	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
-	  to: process.env.OWNER_EMAIL,
-	  subject: `🆕 New Order for ${product.name}`,
-	  html: `
-		<h2>📦 New Order Received</h2>
-		<p><strong>Product:</strong> ${product.name}</p>
-		<p><strong>Product ID:</strong> ${product.id}</p>
-		<p><strong>Price:</strong> $${product.price}</p>
-		<p><strong>Buyer Email:</strong> ${buyerEmail}</p>
-		<p><strong>Buyer ID:</strong> ${buyerId}</p>
-		<p><strong>Time:</strong> ${timestamp}</p>
-	  `
-	});
+    // Notify owner of new order
+    await transporter.sendMail({
+      from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+      to: process.env.OWNER_EMAIL,
+      subject: `🆕 New Order for ${product.name}`,
+      html: `
+        <h2>📦 New Order Received</h2>
+        <p><strong>Product:</strong> ${product.name}</p>
+        <p><strong>Product ID:</strong> ${product.id}</p>
+        <p><strong>Price:</strong> $${product.price}</p>
+        <p><strong>Buyer Email:</strong> ${buyerEmail}</p>
+        <p><strong>Buyer ID:</strong> ${buyerId}</p>
+        <p><strong>Time:</strong> ${timestamp}</p>
+      `
+    });
 
-	await transporter.sendMail({
-	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
-	  to: buyerEmail,
-	  subject: `Your Order for ${product.name}`,
-	  html: `
+    // Email buyer order instructions
+    await transporter.sendMail({
+      from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+      to: buyerEmail,
+      subject: `Your Order for ${product.name}`,
+      html: `
         <h2>Thank you for your order!</h2>
         <p><strong>Product:</strong> ${product.name}</p>
         <p><strong>Price:</strong> $${product.price}</p>
@@ -98,14 +281,12 @@ app.post('/api/orders', async (req, res) => {
         <p><strong>Time:</strong> ${timestamp}</p>
         <h3>Next Steps:</h3>
         <ol>
-		  <li>✅ Your order will be accepted soon <strong>— PLEASE follow all steps</strong></li>
-		  <li>💸 After your order has been accepted, you will receive the CashApp tag. <strong>In the CashApp note, include your Buyer ID: ${buyerId}</strong></li>
-		  <li>📸 Return to the page and upload your payment screenshot</li>
-		  <li>⚠️ If you fail to add the Buyer ID, the order will be flagged as a scam and reviewed manually</li>
-		  <li>🚫 <strong>IMPORTANT:</strong> The email you receive is <u>not yours to keep</u>. If you're unable to remove the vehicle from it, contact 📱 <strong>@salesman_empire</strong> on Instagram or email 📧 <strong>fastfire978@gmail.com</strong></li>
-		</ol>
-
-
+          <li>✅ Your order will be accepted soon <strong>— PLEASE follow all steps</strong></li>
+          <li>💸 After your order has been accepted, you will receive the CashApp tag. <strong>In the CashApp note, include your Buyer ID: ${buyerId}</strong></li>
+          <li>📸 Return to the page and upload your payment screenshot</li>
+          <li>⚠️ If you fail to add the Buyer ID, the order will be flagged as a scam and reviewed manually</li>
+          <li>🚫 <strong>IMPORTANT:</strong> The email you receive is <u>not yours to keep</u>. If you're unable to remove the vehicle from it, contact 📱 <strong>@salesman_empire</strong> on Instagram or email 📧 <strong>fastfire978@gmail.com</strong></li>
+        </ol>
       `
     });
 
@@ -116,7 +297,7 @@ app.post('/api/orders', async (req, res) => {
   }
 });
 
-// Admin
+// Admin login/logout
 app.post('/api/admin/login', (req, res) => {
   const { username, password } = req.body;
   if (
@@ -134,7 +315,7 @@ app.post('/api/admin/logout', isAdmin, (req, res) => {
   res.json({ success: true });
 });
 
-// Admin Stats: Total Sales and Revenue
+// Admin Stats
 app.get('/api/admin/stats', isAdmin, async (req, res) => {
   try {
     const [rows] = await db.query(`
@@ -150,6 +331,7 @@ app.get('/api/admin/stats', isAdmin, async (req, res) => {
   }
 });
 
+// Admin orders
 app.get('/api/admin/orders', isAdmin, async (req, res) => {
   try {
     const [orders] = await db.query(`
@@ -165,41 +347,41 @@ app.get('/api/admin/orders', isAdmin, async (req, res) => {
   }
 });
 
-// Accept Order — sends CashApp link, does NOT delete
+// Accept order: sends CashApp instructions, does NOT delete order
 app.post('/api/admin/orders/:buyerId/accept', isAdmin, async (req, res) => {
   const buyerId = req.params.buyerId;
   try {
     const [[order]] = await db.query('SELECT * FROM orders WHERE buyer_id = ?', [buyerId]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-	await transporter.sendMail({
-	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
-	  to: order.buyer_email,
-	  subject: 'Payment Instructions',
-	  text: `
-	Hello,
+    await transporter.sendMail({
+      from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+      to: order.buyer_email,
+      subject: 'Payment Instructions',
+      text: `
+Hello,
 
-	Please send your payment to CashApp:
-	$shayIrl
+Please send your payment to CashApp:
+$shayIrl
 
-	Include your Buyer ID in the note:
-	${order.buyer_id}
+Include your Buyer ID in the note:
+${order.buyer_id}
 
-	Then upload your screenshot on the site.
+Then upload your screenshot on the site.
 
-	Thank you,
-	Salesman Empire
-	`.trim()
-	});
+Thank you,
+Salesman Empire
+      `.trim()
+    });
 
-    res.json({ success: true }); // ✅ DO NOT delete order
+    res.json({ success: true }); // DO NOT delete order here
   } catch (err) {
     console.error('Accept Order Error:', err);
     res.status(500).json({ error: 'Failed to accept order' });
   }
 });
 
-// Decline Order — sends email + deletes
+// Decline order: sends email and deletes order
 app.post('/api/admin/orders/:buyerId/decline', isAdmin, async (req, res) => {
   const buyerId = req.params.buyerId;
 
@@ -207,26 +389,26 @@ app.post('/api/admin/orders/:buyerId/decline', isAdmin, async (req, res) => {
     const [[order]] = await db.query('SELECT * FROM orders WHERE buyer_id = ?', [buyerId]);
     if (!order) return res.status(404).json({ error: 'Order not found' });
 
-	await transporter.sendMail({
-	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
-	  to: order.buyer_email,
-	  subject: '❌ Your Order Has Been Declined',
-	  text: `
-	Hello,
+    await transporter.sendMail({
+      from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+      to: order.buyer_email,
+      subject: '❌ Your Order Has Been Declined',
+      text: `
+Hello,
 
-	Unfortunately, your order has been declined.
+Unfortunately, your order has been declined.
 
-	🧾 Buyer ID: ***${order.buyer_id}***
+🧾 Buyer ID: ***${order.buyer_id}***
 
-	If you believe this is a mistake or if you've already made a payment, please reach out to us for assistance.
+If you believe this is a mistake or if you've already made a payment, please reach out to us for assistance.
 
-	📧 Email: fastfire978@gmail.com  
-	📱 Instagram: @salesman_empire
+📧 Email: fastfire978@gmail.com  
+📱 Instagram: @salesman_empire
 
-	Thank you for your understanding,  
-	Salesman Empire
-	  `.trim()
-	});
+Thank you for your understanding,  
+Salesman Empire
+      `.trim()
+    });
 
     await db.query('DELETE FROM orders WHERE buyer_id = ?', [buyerId]);
 
@@ -237,7 +419,7 @@ app.post('/api/admin/orders/:buyerId/decline', isAdmin, async (req, res) => {
   }
 });
 
-// Complete Order — sends credentials + deletes
+// Complete Order — sends credentials + deletes + giveaway check
 app.post('/api/admin/orders/:buyerId/complete', isAdmin, async (req, res) => {
   const buyerId = req.params.buyerId;
   try {
@@ -254,51 +436,53 @@ app.post('/api/admin/orders/:buyerId/complete', isAdmin, async (req, res) => {
     const credential = creds[0];
     await db.query('UPDATE product_credentials SET assigned = true WHERE id = ?', [credential.id]);
 
-	 await transporter.sendMail({
-	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
-	  to: order.buyer_email,
-	  subject: 'Your Purchase Details & Login Credentials',
-	  text: `
-	Thank you for your purchase!
+    await transporter.sendMail({
+      from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+      to: order.buyer_email,
+      subject: 'Your Purchase Details & Login Credentials',
+      text: `
+Thank you for your purchase!
 
-	Here are your credentials:
+Here are your credentials:
 
-	Email: ${credential.email}
-	Password: ${credential.password}
+Email: ${credential.email}
+Password: ${credential.password}
 
-	⚠️ Please remember: This account is not yours to keep. Use it as instructed and do not change the password unless told.
+⚠️ Please remember: This account is not yours to keep. Use it as instructed and do not change the password unless told.
 
-	If you have any issues, contact us at fastfire978@gmail.com or on Instagram @salesman_empire.
+If you have any issues, contact us at fastfire978@gmail.com or on Instagram @salesman_empire.
 
-	– Salesman Empire
-	`.trim()
-	});
-	
-	await transporter.sendMail({
-	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
-	  to: process.env.OWNER_EMAIL,
-	  subject: `✅ Credential Sent: Buyer ID ${order.buyer_id}`,
-	  text: `
-	A buyer has been sent credentials.
+– Salesman Empire
+      `.trim()
+    });
 
-	🧾 Buyer ID: ${order.buyer_id}
-	📧 Email: ${credential.email}
-	🔑 Password: ${credential.password}
-	💰 Product ID: ${order.product_id}
+    await transporter.sendMail({
+      from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+      to: process.env.OWNER_EMAIL,
+      subject: `✅ Credential Sent: Buyer ID ${order.buyer_id}`,
+      text: `
+A buyer has been sent credentials.
 
-	– Salesman Empire Bot
-	`.trim()
-	});
+🧾 Buyer ID: ${order.buyer_id}
+📧 Email: ${credential.email}
+🔑 Password: ${credential.password}
+💰 Product ID: ${order.product_id}
 
+– Salesman Empire Bot
+      `.trim()
+    });
 
-    await db.query('DELETE FROM orders WHERE buyer_id = ?', [buyerId]); // ✅ fixed here
+    await db.query('DELETE FROM orders WHERE buyer_id = ?', [buyerId]);
+
+    // *** Giveaway logic trigger ***
+    await handleOrderCompletion(buyerId);
+
     res.json({ success: true });
   } catch (err) {
     console.error('Complete Order Error:', err);
     res.status(500).json({ error: 'Failed to complete order' });
   }
 });
-
 
 // Add or Update Product
 app.post('/api/admin/products', isAdmin, async (req, res) => {
@@ -399,11 +583,6 @@ app.post('/api/admin/products', isAdmin, async (req, res) => {
   }
 });
 
-
-
-
-
-
 app.delete('/api/products/:id', isAdmin, async (req, res) => {
   const id = req.params.id;
   try {
@@ -479,7 +658,6 @@ ${rawText}
   });
 }
 
-
 app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res) => {
   if (!req.file || !req.file.buffer) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -489,23 +667,31 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
     const imageBuffer = req.file.buffer;
     const imageHash = crypto.createHash('sha256').update(imageBuffer).digest('hex');
 
+    // Prepare log directory and filename
     const logDir = path.join(__dirname, 'ocr_logs', dayjs().format('YYYY-MM-DD'));
     fs.mkdirSync(logDir, { recursive: true });
     const timestamp = dayjs().format('YYYYMMDD_HHmmss');
-    const flaggedPath = path.join(logDir, `flagged_${timestamp}${path.extname(req.file.originalname)}`);
-    fs.writeFileSync(flaggedPath, imageBuffer); // Save flagged image for log
+    const flaggedFilename = `flagged_${timestamp}${path.extname(req.file.originalname)}`;
+    const flaggedPath = path.join(logDir, flaggedFilename);
 
+    // Save flagged image preemptively (to attach in emails if flagged)
+    fs.writeFileSync(flaggedPath, imageBuffer);
+
+    // Check duplicate flagged image by hash
     const [duplicateCheck] = await db.query('SELECT id FROM flagged_images WHERE hash = ?', [imageHash]);
 
+    // EXIF & entropy tampering check
     const exifData = exif.create(imageBuffer).parse();
     const metadata = await sharp(imageBuffer).metadata();
     const entropyCheck = metadata.entropy || 0;
     const isTampered = entropyCheck < 3 || !exifData.tags || Object.keys(exifData.tags).length === 0;
 
+    // OCR using Tesseract
     const result = await tesseract.recognize(imageBuffer, 'eng');
     const rawText = result.data.text;
     const rawTextFlat = rawText.replace(/[\r\n]+/g, ' ');
 
+    // Normalization function for matching
     const normalize = (str) => str
       .replace(/[^a-z0-9]/gi, '')
       .replace(/S/g, '5')
@@ -517,14 +703,20 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
       .replace(/J/g, 'R')
       .toUpperCase();
 
+    // CashApp tags (primary and fallback)
     const primaryTag = process.env.CASHAPP_TAG_PRIMARY || '';
-    const fallbackTags = (process.env.CASHAPP_TAG_FALLBACK || '').split(',').map(t => normalize(t.trim()));
+    const fallbackTags = (process.env.CASHAPP_TAG_FALLBACK || '')
+      .split(',')
+      .map(t => normalize(t.trim()))
+      .filter(t => t.length > 0);
     const normalizedText = normalize(rawTextFlat);
     const normalizedPrimary = normalize(primaryTag);
 
+    // Check tag matches
     let tagMatched = null;
-    if (normalizedText.includes(normalizedPrimary)) tagMatched = normalizedPrimary;
-    else {
+    if (normalizedText.includes(normalizedPrimary)) {
+      tagMatched = normalizedPrimary;
+    } else {
       for (const fallback of fallbackTags) {
         if (normalizedText.includes(fallback)) {
           tagMatched = fallback;
@@ -533,6 +725,7 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
       }
     }
 
+    // Fuzzy fallback tag matching if no direct substring match
     if (!tagMatched) {
       const candidates = [normalizedPrimary, ...fallbackTags];
       for (const tag of candidates) {
@@ -544,6 +737,7 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
       }
     }
 
+    // Extract Buyer ID candidates (8-char alphanumeric)
     const buyerIdCandidates = new Set();
     const words = rawTextFlat.split(/\s+/);
     for (let i = 0; i < words.length - 1; i++) {
@@ -553,10 +747,12 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
     [...rawTextFlat.matchAll(/\b[A-Z0-9]{8}\b/gi)].forEach(m => buyerIdCandidates.add(normalize(m[0])));
     const buyerIdList = [...buyerIdCandidates];
 
+    // Extract price from OCR text
     let extractedPrice = null;
     const match = rawTextFlat.match(/\$\s*(\d{1,3}(?:\.\d{1,2})?)/);
     if (match) extractedPrice = match[1];
 
+    // Fetch all orders and product prices
     const [orders] = await db.query(`
       SELECT o.*, p.price AS product_price FROM orders o JOIN products p ON o.product_id = p.id
     `);
@@ -565,6 +761,7 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
     let matchedBuyerId = null;
     let bestScore = 0;
 
+    // Fuzzy match buyer IDs against order buyer IDs
     for (const order of orders) {
       const dbId = normalize(order.buyer_id);
       for (const candidate of buyerIdList) {
@@ -581,6 +778,7 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
     const priceValid = extractedPrice && matchedOrder &&
       Math.abs(parseFloat(extractedPrice) - parseFloat(matchedOrder.product_price)) < 0.01;
 
+    // Decide if image flagged
     if (!matchedOrder || !tagValid || !priceValid || isTampered || bestScore < 85) {
       if (!duplicateCheck.length) {
         await db.query('INSERT INTO flagged_images (hash) VALUES (?)', [imageHash]);
@@ -600,12 +798,13 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
         tagMatch: tagValid,
         priceMatch: priceValid,
         imageBuffer,
-        filename: `flagged_${timestamp}${path.extname(req.file.originalname)}`
+        filename: flaggedFilename
       });
 
       return res.status(400).json({ error: 'Image flagged and emailed for review.' });
     }
 
+    // Credentials assignment on verified order
     const [creds] = await db.query(`
       SELECT * FROM product_credentials WHERE product_id = ? AND assigned = false LIMIT 1
     `, [matchedOrder.product_id]);
@@ -614,39 +813,40 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
 
     const credential = creds[0];
     await db.query('UPDATE product_credentials SET assigned = true WHERE id = ?', [credential.id]);
-	await transporter.sendMail({
-	  from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
-	  to: matchedOrder.buyer_email,
-	  subject: 'Your Credentials – Salesman Empire',
-	  text: `
-	Thank you for your purchase!
 
-	Here are your login details:
+    await transporter.sendMail({
+      from: `"Salesman Empire" <${process.env.SMTP_USER}>`,
+      to: matchedOrder.buyer_email,
+      subject: 'Your Credentials – Salesman Empire',
+      text: `
+Thank you for your purchase!
 
-	Email: ${credential.email}
-	Password: ${credential.password}
+Here are your login details:
 
-	⚠️ Note: This account is for one-time use only. Please do not change the password unless instructed.
+Email: ${credential.email}
+Password: ${credential.password}
 
-	Need help? Contact us at fastfire978@gmail.com or on Instagram @salesman_empire.
+⚠️ Note: This account is for one-time use only. Please do not change the password unless instructed.
 
-	– Salesman Empire
-	`.trim()
-	});
-	
-	await transporter.sendMail({
-	  from: `"Salesman Empire Bot" <${process.env.SMTP_USER}>`,
-	  to: process.env.OWNER_EMAIL,
-	  subject: '✅ Credentials Sent to Buyer',
-	  text: `
-	A buyer has received credentials.
+Need help? Contact us at fastfire978@gmail.com or on Instagram @salesman_empire.
 
-	🧾 Buyer ID: ${matchedOrder.buyer_id}
-	📧 Email: ${credential.email}
-	🔑 Password: ${credential.password}
-	💰 Product ID: ${matchedOrder.product_id}
-	`.trim()
-	});
+– Salesman Empire
+      `.trim()
+    });
+
+    await transporter.sendMail({
+      from: `"Salesman Empire Bot" <${process.env.SMTP_USER}>`,
+      to: process.env.OWNER_EMAIL,
+      subject: '✅ Credentials Sent to Buyer',
+      text: `
+A buyer has received credentials.
+
+🧾 Buyer ID: ${matchedOrder.buyer_id}
+📧 Email: ${credential.email}
+🔑 Password: ${credential.password}
+💰 Product ID: ${matchedOrder.product_id}
+      `.trim()
+    });
 
     await db.query('DELETE FROM orders WHERE id = ?', [matchedOrder.id]);
 
@@ -661,12 +861,13 @@ app.post('/api/upload-screenshot', upload.single('screenshot'), async (req, res)
 
 async function notifyFlagged(ocrText, reason, buyerId = 'UNKNOWN') {
   await transporter.sendMail({
-    from: process.env.SMTP_USER,
+    from: `"Salesman Empire OCR Bot" <${process.env.SMTP_USER}>`,
     to: process.env.OWNER_EMAIL,
     subject: '🚨 OCR Payment Flagged',
     text: `Buyer ID: ${buyerId}\nReason: ${reason}\n\nFull OCR Text:\n${ocrText}`
   });
 }
+
 
 // Existing routes above this...
 // 📍 Get Flagged Orders
@@ -759,10 +960,32 @@ app.post('/api/admin/orders/:buyerId/resend', isAdmin, async (req, res) => {
   }
 });
 
+// Assuming you have a db connection with a query method
+
+app.get('/api/admin/visitors', async (req, res) => {
+  try {
+    // Query visitor counts for all pages tracked
+    const [rows] = await db.query('SELECT page, visits FROM page_visitors');
+    
+    // Transform rows into an object { "index.html": 123, "giveaway.html": 45 }
+    const counts = {};
+    for (const row of rows) {
+      counts[row.page] = row.visits;
+    }
+
+    res.json(counts);
+  } catch (err) {
+    console.error('Failed to load visitor counts:', err);
+    res.status(500).json({ error: 'Failed to load visitor counts' });
+  }
+});
+
 
 // All middleware
 app.use(express.static('public'));
 app.use('/api', (req, res) => res.status(404).json({ error: 'API route not found' }));
+
+
 
 // ✅ Add ping route here
 app.get('/ping', (req, res) => {

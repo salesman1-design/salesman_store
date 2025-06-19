@@ -11,6 +11,7 @@
   <header>
     <h1>Admin Panel</h1>
     <button class="admin-btn" id="open-music-btn">🎵 Open Music Player</button>
+    <button id="trigger-giveaway-btn" class="btn btn-warning">🎯 Trigger Giveaway</button>
     <button id="logout-btn">Logout</button>
   </header>
 
@@ -62,7 +63,46 @@
         </tbody>
       </table>
     </section>
+
+    <!-- 🎁 Giveaway Section -->
+    <section id="giveaway-section" style="margin-top: 30px;">
+      <h2>🎁 Giveaways</h2>
+      <table id="giveaway-table" border="1" style="width: 100%; margin-bottom: 1rem;">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Type</th>
+            <th>Value</th>
+            <th>Winners</th>
+            <th>Active?</th>
+            <th>End Date</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+
+      <h3>Create New Giveaway</h3>
+      <form id="create-giveaway-form">
+        <input type="text" name="title" placeholder="Title" required>
+        <input type="text" name="description" placeholder="Description" required>
+        <select name="trigger_type" required>
+          <option value="order_count">Order Count</option>
+          <option value="manual">Manual</option>
+        </select>
+        <input type="number" name="trigger_value" placeholder="Trigger Value (e.g. 10)" required>
+        <input type="date" name="end_date" placeholder="End Date">
+        <button type="submit">Create Giveaway</button>
+      </form>
+    </section>
   </main>
+  
+	 <div class="admin-stats-section">
+	  <h2>Visitor Counts</h2>
+	  <p>Homepage visitors: <span id="visitor-index">0</span></p>
+	  <p>Giveaway page visitors: <span id="visitor-giveaway">0</span></p>
+	</div>
+
 
   <!-- Product Modal -->
   <div id="product-modal" class="modal hidden">
@@ -101,7 +141,6 @@
   <script src="main.js"></script>
 
   <script>
-    // ✅ 1. Admin button opens visible music player control window
     let musicWindow;
     document.getElementById('open-music-btn')?.addEventListener('click', () => {
       if (!musicWindow || musicWindow.closed) {
@@ -111,13 +150,11 @@
       }
     });
 
-    // ✅ 2. Trigger autoplay on first user interaction (required by browser)
     window.addEventListener('click', () => {
       const iframe = document.getElementById('bg-music-player');
       iframe?.contentWindow?.postMessage('start-music', '*');
     }, { once: true });
 
-    // ✅ 3. Fetch sales stats on load
     async function loadStats() {
       try {
         const res = await fetch('/api/admin/stats');
@@ -129,10 +166,79 @@
       }
     }
 
+    async function loadGiveaways() {
+      const res = await fetch('/api/admin/giveaways');
+      const data = await res.json();
+
+      const tbody = document.querySelector('#giveaway-table tbody');
+      tbody.innerHTML = '';
+
+      data.forEach(g => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${g.id}</td>
+          <td>${g.title}</td>
+          <td>${g.trigger_type}</td>
+          <td>${g.trigger_value}</td>
+          <td>${g.winners.length ? g.winners.join(', ') : '—'}</td>
+          <td>${g.is_active ? '✅' : '❌'}</td>
+          <td>${g.end_date ? g.end_date.split('T')[0] : '—'}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    document.getElementById('create-giveaway-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const formData = new FormData(e.target);
+      const data = Object.fromEntries(formData.entries());
+
+      const res = await fetch('/api/admin/giveaways', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if (res.ok) {
+        alert('Giveaway created!');
+        e.target.reset();
+        loadGiveaways();
+      } else {
+        const err = await res.json();
+        alert('Error: ' + (err.error || 'Failed to create'));
+      }
+    });
+
+    document.getElementById('trigger-giveaway-btn').addEventListener('click', async () => {
+      if (!confirm('Are you sure you want to trigger the giveaway?')) return;
+
+      try {
+        const res = await fetch('/api/admin/giveaway/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          alert(`🎉 Giveaway Triggered!\nWinners:\n- ${data.winners.join('\n- ')}`);
+          loadGiveaways();
+        } else {
+          alert(`⚠️ Failed to trigger: ${data.error}`);
+        }
+      } catch (err) {
+        console.error('Trigger error:', err);
+        alert('❌ Error triggering giveaway.');
+      }
+    });
+
     document.addEventListener('DOMContentLoaded', () => {
       loadStats();
+      loadGiveaways();
     });
   </script>
 </body>
 </html>
+
 

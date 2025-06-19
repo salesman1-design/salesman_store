@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>Golden ID Giveaway</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+  /* Reset and base */
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    background: linear-gradient(135deg, #1f1c2c, #928dab);
+    font-family: 'Poppins', sans-serif;
+    color: #e0e0e0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  .container {
+    background: rgba(30, 30, 40, 0.95);
+    border-radius: 16px;
+    padding: 3rem 2.5rem;
+    max-width: 420px;
+    width: 100%;
+    box-shadow:
+      0 0 30px rgba(255, 255, 255, 0.1),
+      inset 0 0 40px rgba(255, 255, 255, 0.05);
+    text-align: center;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 1.8rem;
+  }
+
+  h1 {
+    font-weight: 600;
+    font-size: 2.4rem;
+    margin-bottom: 0.2rem;
+    color: #ffcc00;
+    text-shadow: 0 0 8px #ffcc00aa;
+  }
+
+  p.description {
+    font-weight: 400;
+    font-size: 1.05rem;
+    margin-top: 0;
+    margin-bottom: 2rem;
+    color: #aaa;
+    letter-spacing: 0.05em;
+    line-height: 1.4;
+  }
+
+  .giveaway-timer,
+  .giveaway-winners {
+    text-align: center;
+  }
+
+  .giveaway-timer h2,
+  .giveaway-winners h2 {
+    font-weight: 600;
+    font-size: 1.4rem;
+    margin-bottom: 0.6rem;
+    color: #ffd633;
+    text-shadow: 0 0 5px #ffd633cc;
+  }
+
+  .countdown {
+    font-weight: 700;
+    font-size: 2.7rem;
+    letter-spacing: 0.12em;
+    color: #fff;
+    text-shadow:
+      0 0 10px #ffcc00aa,
+      0 0 20px #ffcc00bb;
+    margin-bottom: 0;
+    font-variant-numeric: tabular-nums;
+    animation: pulse 2.5s infinite ease-in-out;
+    word-break: break-word;
+  }
+
+  .winners {
+    font-weight: 500;
+    color: #eee;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 0 0.5rem;
+  }
+
+  .winner {
+    font-size: 1.3rem;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid #444;
+    color: #ffd633;
+    letter-spacing: 0.04em;
+  }
+  .winner:last-child {
+    border-bottom: none;
+  }
+
+  .waiting {
+    font-style: italic;
+    color: #888;
+    font-size: 1.1rem;
+  }
+
+  .giveaway-footer {
+    font-size: 0.9rem;
+    color: #bbb;
+    margin-top: 1.5rem;
+    line-height: 1.3;
+  }
+
+  /* Scrollbar styling for winners list */
+  .winners::-webkit-scrollbar {
+    width: 8px;
+  }
+  .winners::-webkit-scrollbar-track {
+    background: #222;
+  }
+  .winners::-webkit-scrollbar-thumb {
+    background-color: #ffcc00cc;
+    border-radius: 4px;
+  }
+
+  /* Glowing pulse animation for countdown */
+  @keyframes pulse {
+    0%, 100% {
+      text-shadow:
+        0 0 8px #ffcc00aa,
+        0 0 20px #ffcc00bb;
+      color: #fff;
+    }
+    50% {
+      text-shadow:
+        0 0 12px #ffdd33cc,
+        0 0 28px #ffd633ee;
+      color: #fff9c4;
+    }
+  }
+
+  /* Responsive tweaks */
+  @media (max-width: 480px) {
+    body {
+      padding: 1rem;
+    }
+    .container {
+      padding: 2rem 1.5rem;
+      max-width: 100%;
+      border-radius: 12px;
+    }
+    h1 {
+      font-size: 2rem;
+    }
+    p.description {
+      font-size: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .countdown {
+      font-size: 2.2rem;
+      letter-spacing: 0.08em;
+    }
+    .winner {
+      font-size: 1.1rem;
+    }
+    .giveaway-footer {
+      font-size: 0.85rem;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="container" role="main" aria-label="Golden ID Mega Giveaway">
+    <h1>🎉 Golden ID Mega Giveaway 🎉</h1>
+    <p class="description">
+      We’re giving away <strong>3 exclusive Golden IDs</strong> to lucky buyers — 
+      your chance to <strong>win exclusive prizes, 1 day subscription to any gg work, and a week subscription to account currency</strong>!
+    </p>
+
+    <section aria-labelledby="countdown-label" class="giveaway-timer">
+      <h2 id="countdown-label">Giveaway ends in:</h2>
+      <div id="countdown" class="countdown" aria-live="polite" aria-atomic="true">
+        Loading countdown...
+      </div>
+    </section>
+
+    <section aria-labelledby="winners-label" class="giveaway-winners" tabindex="0">
+      <h2 id="winners-label">🎖️ Winners Announcement 🎖️</h2>
+      <div id="winners" class="winners" aria-live="polite" aria-atomic="true">
+        <p class="waiting">Stay tuned — winners will be revealed here once the giveaway ends!</p>
+      </div>
+    </section>
+
+    <footer class="giveaway-footer">
+      <p>
+        Thank you to everyone who participates! This is a limited-time event — make sure you don’t miss out.
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    let giveawayEndDate = null;
+    let winners = [];
+
+    function formatTime(ms) {
+      const totalSeconds = Math.floor(ms / 1000);
+      const days = Math.floor(totalSeconds / (3600 * 24));
+      const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    async function fetchGiveaway() {
+      try {
+        const res = await fetch('/api/giveaway/latest');
+        if (!res.ok) throw new Error('Failed to fetch giveaway data');
+        const data = await res.json();
+
+        giveawayEndDate = data.end_date ? new Date(data.end_date) : null;
+        winners = data.winners || [];
+
+        if (!giveawayEndDate) {
+          document.getElementById('countdown').textContent = 'No active giveaway';
+          showWinners();
+          return;
+        }
+
+        if (winners.length > 0) {
+          showWinners();
+          document.getElementById('countdown').textContent = 'Giveaway ended!';
+        } else {
+          startCountdown();
+        }
+      } catch (e) {
+        document.getElementById('countdown').textContent = 'Error loading giveaway data';
+        console.error(e);
+      }
+    }
+
+    function startCountdown() {
+      const countdownEl = document.getElementById('countdown');
+
+      const interval = setInterval(() => {
+        const now = new Date();
+        const diff = giveawayEndDate - now;
+
+        if (diff <= 0) {
+          clearInterval(interval);
+          countdownEl.textContent = 'Giveaway ended!';
+          showWinners();
+          return;
+        }
+
+        countdownEl.textContent = formatTime(diff);
+      }, 1000);
+    }
+
+    function showWinners() {
+      const winnersEl = document.getElementById('winners');
+      winnersEl.innerHTML = '';
+
+      if (winners.length === 0) {
+        winnersEl.innerHTML = '<p class="waiting">Waiting for giveaway to complete...</p>';
+        return;
+      }
+
+      winners.forEach((winner, i) => {
+        const p = document.createElement('p');
+        p.className = 'winner';
+        p.textContent = `${i + 1}. ${winner}`;
+        winnersEl.appendChild(p);
+      });
+    }
+
+    fetchGiveaway();
+  </script>
+</body>
+</html>
+
+
+
