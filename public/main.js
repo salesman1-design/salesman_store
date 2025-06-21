@@ -51,11 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
       productsContainer.innerHTML = '';
 
       if (!items.length) {
-        productsContainer.innerHTML = `
-          <div class="no-results" style="width:100%; text-align:center; padding:1rem;">
-            <p>No products found.</p>
-          </div>
-        `;
+        productsContainer.innerHTML = `<div class="no-results" style="width:100%; text-align:center; padding:1rem;"><p>No products found.</p></div>`;
         return;
       }
 
@@ -69,8 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <p class="description">${p.description}</p>
             <p class="price">$${parseFloat(p.price).toFixed(2)}</p>
             <button class="buy-btn" data-id="${p.id}">Buy</button>
-          </div>
-        `;
+          </div>`;
         productsContainer.appendChild(card);
       });
     }
@@ -153,15 +148,9 @@ document.addEventListener('DOMContentLoaded', () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username: 'fastfire9', password }),
-          credentials: 'include'  // for session cookie
+          credentials: 'include'
         })
-          .then(res => {
-            if (res.ok) {
-              window.location.href = '/admin.html';
-            } else {
-              alert('Wrong username or password');
-            }
-          })
+          .then(res => res.ok ? window.location.href = '/admin.html' : alert('Wrong username or password'))
           .catch(() => alert('Network error'));
       }
     });
@@ -171,6 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     fetchProducts();
+	trackPageView('index.html');
   }
 
   // === ADMIN PANEL CODE ===
@@ -228,8 +218,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 <button class="decline-btn" data-id="${o.buyer_id}">Decline</button>
               ` : '—'}
             </td>
-          </tr>
-        `;
+          </tr>`;
       });
     }
 
@@ -285,23 +274,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const id = e.target.dataset.id;
       if (!id) return;
 
-      if (e.target.classList.contains('accept-btn')) {
-        await handleOrderAction(id, 'accept');
-      }
-      if (e.target.classList.contains('complete-btn')) {
-        await handleOrderAction(id, 'complete');
-      }
-      if (e.target.classList.contains('decline-btn')) {
-        await handleOrderAction(id, 'decline');
-      }
+      if (e.target.classList.contains('accept-btn')) await handleOrderAction(id, 'accept');
+      if (e.target.classList.contains('complete-btn')) await handleOrderAction(id, 'complete');
+      if (e.target.classList.contains('decline-btn')) await handleOrderAction(id, 'decline');
     });
 
     async function handleOrderAction(id, action) {
       try {
         const res = await fetch(`/api/admin/orders/${id}/${action}`, { method: 'POST', credentials: 'include' });
-        if (res.ok) {
-          await loadOrders(); // reload orders on action success
-        } else {
+        if (res.ok) await loadOrders();
+        else {
           const err = await res.json();
           alert(err.error || 'Action failed');
         }
@@ -312,9 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     productsTableBody?.addEventListener('click', (e) => {
       const id = e.target.dataset.id;
-      if (e.target.classList.contains('edit-product-btn')) {
-        window.location.href = `/addproduct.html?id=${id}`;
-      }
+      if (e.target.classList.contains('edit-product-btn')) window.location.href = `/addproduct.html?id=${id}`;
       if (e.target.classList.contains('delete-product-btn')) {
         if (confirm('Delete this product?')) {
           fetch(`/api/products/${id}`, { method: 'DELETE', credentials: 'include' })
@@ -344,38 +324,35 @@ document.addEventListener('DOMContentLoaded', () => {
         const res = await fetch('/api/admin/stats', { credentials: 'include' });
         if (!res.ok) throw new Error('Failed to fetch stats');
         const data = await res.json();
-        document.getElementById('total-sales').textContent = data.totalOrders || 0;
-        document.getElementById('total-revenue').textContent = `$${(data.totalIncome || 0).toFixed(2)}`;
+        el('total-sales').textContent = data.totalOrders || 0;
+        el('total-revenue').textContent = `$${(data.totalIncome || 0).toFixed(2)}`;
       } catch (err) {
         console.error('Failed to load stats:', err);
       }
     }
 
-    // Visitor count loader
     async function loadVisitorCounts() {
       try {
         const res = await fetch('/api/admin/visitors', { credentials: 'include' });
         if (!res.ok) throw new Error('Failed to load visitor counts');
         const data = await res.json();
 
-        document.getElementById('visitor-index').textContent = data['index.html'] || 0;
-        document.getElementById('visitor-giveaway').textContent = data['giveaway.html'] || 0;
+        el('visitor-index').textContent = data['index.html'] || 0;
+        el('visitor-giveaway').textContent = data['giveaway.html'] || 0;
       } catch (e) {
         console.error('Visitor counts load error:', e);
       }
     }
 
-    // Placeholder for giveaway loader - fill with your code if needed
     async function loadGiveaways() {
-      // TODO: implement giveaway table load
+      // Placeholder for giveaway log
     }
 
-    // Initial load calls
     loadOrders();
     loadProducts();
     loadStats();
-    loadGiveaways();
     loadVisitorCounts();
+    loadGiveaways();
   }
 
   // === ADD PRODUCT PAGE LOGIC ===

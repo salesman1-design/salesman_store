@@ -205,6 +205,16 @@
   </div>
 
   <script>
+  trackPageView('giveaway.html');
+
+  function trackPageView(pageName) {
+    fetch('/api/track-visit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page: pageName })
+    }).catch(err => console.error('Visit track failed:', err));
+  }
+  
     let giveawayEndDate = null;
     let winners = [];
 

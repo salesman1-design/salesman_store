@@ -42,6 +42,22 @@ function isAdmin(req, res, next) {
   return res.status(401).send('Unauthorized');
 }
 
+app.post('/api/track-visit', async (req, res) => {
+  const { page } = req.body;
+  if (!page) return res.status(400).json({ error: 'Page name required' });
+
+  try {
+    await db.query(`
+      INSERT INTO page_visitors (page, visits) VALUES (?, 1)
+      ON DUPLICATE KEY UPDATE visits = visits + 1
+    `, [page]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Track visit error:', err);
+    res.status(500).json({ error: 'Failed to track visit' });
+  }
+});
+
 // --- GIVEAWAY HELPERS ---
 
 async function handleOrderCompletion(buyerId) {
@@ -224,6 +240,11 @@ app.get('/api/giveaway/latest', async (req, res) => {
 });
 
 // --- ROUTES ---
+app.post('/api/track', express.json(), (req, res) => {
+  const { page, timestamp } = req.body;
+  console.log(`📊 Page view tracked: ${page} at ${timestamp}`);
+  res.sendStatus(200);
+});
 
 // Products list
 app.get('/api/products', async (req, res) => {
